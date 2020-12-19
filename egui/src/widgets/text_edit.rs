@@ -133,7 +133,7 @@ impl<'t> TextEdit<'t> {
     pub fn new(text: &'t mut String) -> Self {
         Self::multiline(text)
     }
-
+    
     /// Now newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` loosing focus (`response.lost_kb_focus`).
     pub fn singleline(text: &'t mut String) -> Self {
         TextEdit {
@@ -375,9 +375,12 @@ impl<'t> Widget for TextEdit<'t> {
                     Event::Key {
                         key: Key::Enter,
                         pressed: true,
-                        ..
+                        modifiers,
                     } => {
-                        if multiline {
+			if multiline && modifiers.command {
+			    println!("text {} {:?}", text, &cursorp);
+			    break;
+			} else if multiline {
                             let mut ccursor = delete_selected(text, &cursorp);
                             insert_text(&mut ccursor, text, "\n");
                             Some(CCursorPair::one(ccursor))
