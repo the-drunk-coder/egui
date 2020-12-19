@@ -41,13 +41,7 @@ impl Ui {
     // ------------------------------------------------------------------------
     // Creation:
 
-    pub fn new(
-        ctx: Arc<Context>,
-        layer_id: LayerId,
-        id: Id,
-        max_rect: Rect,
-        clip_rect: Rect,
-    ) -> Self {
+    pub fn new(ctx: CtxRef, layer_id: LayerId, id: Id, max_rect: Rect, clip_rect: Rect) -> Self {
         let style = ctx.style();
         let layout = Layout::default();
         let region = layout.region_from_max_rect(max_rect);
@@ -77,7 +71,7 @@ impl Ui {
 
     /// Empty `Ui` for use in tests.
     pub fn __test() -> Self {
-        let mut ctx = Context::new();
+        let mut ctx = CtxRef::default();
         ctx.begin_frame(Default::default());
         let id = Id::new("__test");
         let layer_id = LayerId::new(Order::Middle, id);
@@ -106,7 +100,7 @@ impl Ui {
         self.style = style.into();
     }
 
-    pub fn ctx(&self) -> &Arc<Context> {
+    pub fn ctx(&self) -> &CtxRef {
         self.painter.ctx()
     }
 
@@ -525,6 +519,13 @@ impl Ui {
         let response = self.interact_hover(final_child_rect);
         (ret, response)
     }
+
+    /// Convenience function to get a region to paint on
+    pub fn allocate_painter(&mut self, desired_size: Vec2) -> Painter {
+        let rect = self.allocate_space(desired_size);
+        let clip_rect = self.clip_rect().intersect(rect); // Make sure we don't paint out of bounds
+        Painter::new(self.ctx().clone(), self.layer_id(), clip_rect)
+    }
 }
 
 /// # Adding widgets
@@ -827,19 +828,26 @@ impl Ui {
         (ret, self.interact_hover(rect))
     }
 
+    #[deprecated]
     pub fn left_column(&mut self, width: f32) -> Self {
+        #[allow(deprecated)]
         self.column(Align::Min, width)
     }
 
+    #[deprecated]
     pub fn centered_column(&mut self, width: f32) -> Self {
+        #[allow(deprecated)]
         self.column(Align::Center, width)
     }
 
+    #[deprecated]
     pub fn right_column(&mut self, width: f32) -> Self {
+        #[allow(deprecated)]
         self.column(Align::Max, width)
     }
 
     /// A column ui with a given width.
+    #[deprecated]
     pub fn column(&mut self, column_position: Align, width: f32) -> Self {
         let x = match column_position {
             Align::Min => 0.0,

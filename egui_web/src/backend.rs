@@ -8,7 +8,7 @@ pub use egui::{
 // ----------------------------------------------------------------------------
 
 pub struct WebBackend {
-    ctx: Arc<egui::Context>,
+    ctx: egui::CtxRef,
     painter: webgl::Painter,
     previous_frame_time: Option<f32>,
     frame_start: Option<f64>,
@@ -17,7 +17,7 @@ pub struct WebBackend {
 
 impl WebBackend {
     pub fn new(canvas_id: &str) -> Result<Self, JsValue> {
-        let ctx = egui::Context::new();
+        let ctx = egui::CtxRef::default();
         load_memory(&ctx);
         Ok(Self {
             ctx,
@@ -55,10 +55,13 @@ impl WebBackend {
         Ok((output, paint_jobs))
     }
 
-    pub fn paint(&mut self, paint_jobs: egui::PaintJobs) -> Result<(), JsValue> {
-        let bg_color = egui::color::TRANSPARENT; // Use background css color.
+    pub fn paint(
+        &mut self,
+        clear_color: egui::Rgba,
+        paint_jobs: egui::PaintJobs,
+    ) -> Result<(), JsValue> {
         self.painter.paint_jobs(
-            bg_color,
+            clear_color,
             paint_jobs,
             &self.ctx.texture(),
             self.ctx.pixels_per_point(),
@@ -111,12 +114,9 @@ pub struct WebInput {
 }
 
 impl WebInput {
-    pub fn new_frame(&mut self) -> egui::RawInput {
+    pub fn new_frame(&mut self, canvas_size: egui::Vec2) -> egui::RawInput {
         egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                Default::default(),
-                screen_size_in_native_points().unwrap(),
-            )),
+            screen_rect: Some(egui::Rect::from_min_size(Default::default(), canvas_size)),
             pixels_per_point: Some(native_pixels_per_point()),
             time: Some(now_sec()),
             ..self.raw.take()
@@ -178,8 +178,8 @@ impl AppRunner {
 
     pub fn logic(&mut self) -> Result<(egui::Output, egui::PaintJobs), JsValue> {
         resize_canvas_to_screen_size(self.web_backend.canvas_id());
-
-        let raw_input = self.input.new_frame();
+        let canvas_size = canvas_size_in_points(self.web_backend.canvas_id());
+        let raw_input = self.input.new_frame(canvas_size);
         self.web_backend.begin_frame(raw_input);
 
         let mut integration_context = egui::app::IntegrationContext {
@@ -214,7 +214,7 @@ impl AppRunner {
     }
 
     pub fn paint(&mut self, paint_jobs: egui::PaintJobs) -> Result<(), JsValue> {
-        self.web_backend.paint(paint_jobs)
+        self.web_backend.paint(self.app.clear_color(), paint_jobs)
     }
 }
 

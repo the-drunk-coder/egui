@@ -3,7 +3,6 @@
 //! the only places where you can put you widgets.
 
 use crate::*;
-use std::sync::Arc;
 
 // ----------------------------------------------------------------------------
 
@@ -27,11 +26,7 @@ impl SidePanel {
 }
 
 impl SidePanel {
-    pub fn show<R>(
-        self,
-        ctx: &Arc<Context>,
-        add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    pub fn show<R>(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
         let Self { id, max_width } = self;
 
         let mut panel_rect = ctx.available_rect();
@@ -51,7 +46,7 @@ impl SidePanel {
         let panel_rect = panel_ui.min_rect();
         let response = panel_ui.interact_hover(panel_rect);
 
-        ctx.allocate_left_panel(panel_rect);
+        ctx.frame_state().allocate_left_panel(panel_rect);
 
         (r, response)
     }
@@ -80,11 +75,7 @@ impl TopPanel {
 }
 
 impl TopPanel {
-    pub fn show<R>(
-        self,
-        ctx: &Arc<Context>,
-        add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    pub fn show<R>(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
         let Self { id, max_height } = self;
         let max_height = max_height.unwrap_or_else(|| ctx.style().spacing.interact_size.y);
 
@@ -105,7 +96,7 @@ impl TopPanel {
         let panel_rect = panel_ui.min_rect();
         let response = panel_ui.interact_hover(panel_rect);
 
-        ctx.allocate_top_panel(panel_rect);
+        ctx.frame_state().allocate_top_panel(panel_rect);
 
         (r, response)
     }
@@ -122,11 +113,7 @@ impl TopPanel {
 pub struct CentralPanel {}
 
 impl CentralPanel {
-    pub fn show<R>(
-        self,
-        ctx: &Arc<Context>,
-        add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    pub fn show<R>(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
         let Self {} = self;
 
         let panel_rect = ctx.available_rect();
@@ -138,12 +125,16 @@ impl CentralPanel {
         let mut panel_ui = Ui::new(ctx.clone(), layer_id, id, panel_rect, clip_rect);
 
         let frame = Frame::background(&ctx.style());
-        let r = frame.show(&mut panel_ui, |ui| add_contents(ui));
+        let r = frame.show(&mut panel_ui, |ui| {
+            let r = add_contents(ui);
+            ui.expand_to_include_rect(ui.max_rect()); // Use it all
+            r
+        });
 
         let panel_rect = panel_ui.min_rect();
         let response = panel_ui.interact_hover(panel_rect);
 
-        ctx.allocate_central_panel(panel_rect);
+        ctx.frame_state().allocate_central_panel(panel_rect);
 
         (r, response)
     }

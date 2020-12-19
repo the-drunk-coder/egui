@@ -7,23 +7,26 @@
 
 // TODO: move egui/src/app.rs to own crate, e.g. egui_framework ?
 
-use crate::Context;
-
 /// Implement this trait to write apps that can be compiled both natively using the [`egui_glium`](https://crates.io/crates/egui_glium) crate,
 /// and deployed as a web site using the [`egui_web`](https://crates.io/crates/egui_web) crate.
 pub trait App {
+    /// The name of your App.
+    fn name(&self) -> &str;
+
+    /// Background color for the app.
+    /// e.g. what is sent to `gl.clearColor`
+    fn clear_color(&self) -> crate::Rgba {
+        crate::Srgba::from_rgb(16, 16, 16).into()
+    }
+
     /// Called once before the first frame.
     /// Allows you to do setup code and to call `ctx.set_fonts()`.
     /// Optional.
-    fn setup(&mut self, _ctx: &std::sync::Arc<Context>) {}
+    fn setup(&mut self, _ctx: &crate::CtxRef) {}
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn ui(
-        &mut self,
-        ctx: &std::sync::Arc<Context>,
-        integration_context: &mut IntegrationContext<'_>,
-    );
+    fn ui(&mut self, ctx: &crate::CtxRef, integration_context: &mut IntegrationContext<'_>);
 
     /// Called once on shutdown. Allows you to save state.
     fn on_exit(&mut self, _storage: &mut dyn Storage) {}
@@ -105,7 +108,7 @@ pub trait RepaintSignal: Send {
 /// On the web this is backed by [local storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage).
 /// On desktop this is backed by the file system.
 pub trait Storage {
-    fn get_string(&self, key: &str) -> Option<&str>;
+    fn get_string(&self, key: &str) -> Option<String>;
     fn set_string(&mut self, key: &str, value: String);
 
     /// write-to-disk or similar
@@ -117,7 +120,7 @@ pub trait Storage {
 pub struct DummyStorage {}
 
 impl Storage for DummyStorage {
-    fn get_string(&self, _key: &str) -> Option<&str> {
+    fn get_string(&self, _key: &str) -> Option<String> {
         None
     }
     fn set_string(&mut self, _key: &str, _value: String) {}
@@ -128,7 +131,7 @@ impl Storage for DummyStorage {
 pub fn get_value<T: serde::de::DeserializeOwned>(storage: &dyn Storage, key: &str) -> Option<T> {
     storage
         .get_string(key)
-        .and_then(|value| serde_json::from_str(value).ok())
+        .and_then(|value| serde_json::from_str(&value).ok())
 }
 
 #[cfg(feature = "serde_json")]

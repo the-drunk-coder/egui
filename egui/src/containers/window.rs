@@ -1,7 +1,5 @@
 // WARNING: the code in here is horrible. It is a behemoth that needs breaking up into simpler parts.
 
-use std::sync::Arc;
-
 use crate::{paint::*, widgets::*, *};
 
 use super::*;
@@ -42,7 +40,7 @@ impl<'open> Window<'open> {
             resize: Resize::default()
                 .with_stroke(false)
                 .min_size([96.0, 32.0])
-                .default_size([420.0, 420.0]), // Default inner size of a window
+                .default_size([340.0, 420.0]), // Default inner size of a window
             scroll: None,
             collapsible: true,
             with_title_bar: true,
@@ -183,13 +181,13 @@ impl<'open> Window<'open> {
 }
 
 impl<'open> Window<'open> {
-    pub fn show(self, ctx: &Arc<Context>, add_contents: impl FnOnce(&mut Ui)) -> Option<Response> {
+    pub fn show(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui)) -> Option<Response> {
         self.show_impl(ctx, Box::new(add_contents))
     }
 
     fn show_impl<'c>(
         self,
-        ctx: &Arc<Context>,
+        ctx: &CtxRef,
         add_contents: Box<dyn FnOnce(&mut Ui) + 'c>,
     ) -> Option<Response> {
         let Window {

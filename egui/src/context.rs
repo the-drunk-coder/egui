@@ -10,8 +10,7 @@ use crate::{
     *,
 };
 
-#[derive(Clone, Copy, Default)]
-struct SliceStats<T>(usize, std::marker::PhantomData<T>);
+// ----------------------------------------------------------------------------
 
 #[derive(Clone, Debug, Default)]
 struct Options {
@@ -23,336 +22,141 @@ struct Options {
     font_definitions: FontDefinitions,
 }
 
-/// Thi is the first thing you need when working with Egui.
-///
-/// Contains the input state, memory, options and output.
-/// `Ui`:s keep an `Arc` pointer to this.
-/// This allows us to create several child `Ui`:s at once,
-/// all working against the same shared Context.
-// TODO: too many mutexes. Maybe put it all behind one Mutex instead.
-#[derive(Default)]
-pub struct Context {
-    options: Mutex<Options>,
-    /// None until first call to `begin_frame`.
-    fonts: Option<Arc<Fonts>>,
-    memory: Arc<Mutex<Memory>>,
-    animation_manager: Arc<Mutex<AnimationManager>>,
+// ----------------------------------------------------------------------------
 
-    input: InputState,
+/// State that is collected during a frame and then cleared
+#[derive(Clone)]
+pub(crate) struct FrameState {
+    /// Starts off as the screen_rect, shrinks as panels are added.
+    /// The `CentralPanel` does not change this.
+    /// This is the area avilable to Window's.
+    available_rect: Rect,
 
     /// Starts off as the screen_rect, shrinks as panels are added.
-    /// Becomes `Rect::nothing()` after a `CentralPanel` is finished.
-    available_rect: Mutex<Option<Rect>>,
+    /// The `CentralPanel` retracts from this.
+    unused_rect: Rect,
+
     /// How much space is used by panels.
-    used_by_panels: Mutex<Option<Rect>>,
-
-    // The output of a frame:
-    graphics: Mutex<GraphicLayers>,
-    output: Mutex<Output>,
-
-    paint_stats: Mutex<PaintStats>,
-
-    /// While positive, keep requesting repaints. Decrement at the end of each frame.
-    repaint_requests: AtomicU32,
+    used_by_panels: Rect,
+    // TODO: move some things from `Memory` to here
 }
 
-impl Clone for Context {
-    fn clone(&self) -> Self {
-        Context {
-            options: self.options.clone(),
-            fonts: self.fonts.clone(),
-            memory: self.memory.clone(),
-            animation_manager: self.animation_manager.clone(),
-            input: self.input.clone(),
-            available_rect: self.available_rect.clone(),
-            used_by_panels: self.used_by_panels.clone(),
-            graphics: self.graphics.clone(),
-            output: self.output.clone(),
-            paint_stats: self.paint_stats.clone(),
-            repaint_requests: self.repaint_requests.load(SeqCst).into(),
+impl Default for FrameState {
+    fn default() -> Self {
+        Self {
+            available_rect: Rect::invalid(),
+            unused_rect: Rect::invalid(),
+            used_by_panels: Rect::invalid(),
         }
     }
 }
 
-impl Context {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            // Start with painting an extra frame to compensate for some widgets
-            // that take two frames before they "settle":
-            repaint_requests: AtomicU32::new(1),
-            ..Self::default()
-        })
+impl FrameState {
+    pub fn begin_frame(&mut self, input: &InputState) {
+        self.available_rect = input.screen_rect();
+        self.unused_rect = input.screen_rect();
+        self.used_by_panels = Rect::nothing();
     }
 
     /// How much space is still available after panels has been added.
     /// This is the "background" area, what Egui doesn't cover with panels (but may cover with windows).
     /// This is also the area to which windows are constrained.
     pub fn available_rect(&self) -> Rect {
+        debug_assert!(
+            self.available_rect.is_finite(),
+            "Called `available_rect()` before `begin_frame()`"
+        );
         self.available_rect
-            .lock()
-            .expect("Called `available_rect()` before `begin_frame()`")
     }
 
-    pub fn memory(&self) -> MutexGuard<'_, Memory> {
-        self.memory.lock()
+    /// Shrink `available_rect`.
+    pub(crate) fn allocate_left_panel(&mut self, panel_rect: Rect) {
+        debug_assert!(
+            panel_rect.min == self.available_rect.min,
+            "Mismatching panels. You must not create a panel from within another panel."
+        );
+        self.available_rect.min.x = panel_rect.max.x;
+        self.unused_rect.min.x = panel_rect.max.x;
+        self.used_by_panels = self.used_by_panels.union(panel_rect);
     }
 
-    pub fn graphics(&self) -> MutexGuard<'_, GraphicLayers> {
-        self.graphics.lock()
+    /// Shrink `available_rect`.
+    pub(crate) fn allocate_top_panel(&mut self, panel_rect: Rect) {
+        debug_assert!(
+            panel_rect.min == self.available_rect.min,
+            "Mismatching panels. You must not create a panel from within another panel."
+        );
+        self.available_rect.min.y = panel_rect.max.y;
+        self.unused_rect.min.y = panel_rect.max.y;
+        self.used_by_panels = self.used_by_panels.union(panel_rect);
     }
 
-    pub fn output(&self) -> MutexGuard<'_, Output> {
-        self.output.lock()
+    pub(crate) fn allocate_central_panel(&mut self, panel_rect: Rect) {
+        // Note: we do not shrink `available_rect`, because
+        // we alllow windows to cover the CentralPanel.
+        self.unused_rect = Rect::nothing(); // Nothing left unused after this
+        self.used_by_panels = self.used_by_panels.union(panel_rect);
     }
+}
 
-    /// Call this if there is need to repaint the UI, i.e. if you are showing an animation.
-    /// If this is called at least once in a frame, then there will be another frame right after this.
-    /// Call as many times as you wish, only one repaint will be issued.
-    pub fn request_repaint(&self) {
-        // request two frames of repaint, just to cover some corner cases (frame delays):
-        let times_to_repaint = 2;
-        self.repaint_requests.store(times_to_repaint, SeqCst);
+// ----------------------------------------------------------------------------
+
+/// A wrapper around `CtxRef`.
+/// This is how you will normally access a [`Context`].
+#[derive(Clone)]
+pub struct CtxRef(std::sync::Arc<Context>);
+
+impl std::ops::Deref for CtxRef {
+    type Target = Context;
+
+    fn deref(&self) -> &Context {
+        self.0.deref()
     }
+}
 
-    pub fn input(&self) -> &InputState {
-        &self.input
+impl AsRef<Context> for CtxRef {
+    fn as_ref(&self) -> &Context {
+        self.0.as_ref()
     }
+}
 
-    /// Not valid until first call to `begin_frame()`
-    /// That's because since we don't know the proper `pixels_per_point` until then.
-    pub fn fonts(&self) -> &Fonts {
-        &*self
-            .fonts
-            .as_ref()
-            .expect("No fonts available until first call to Context::begin_frame()`")
+impl std::borrow::Borrow<Context> for CtxRef {
+    fn borrow(&self) -> &Context {
+        self.0.borrow()
     }
+}
 
-    /// The Egui texture, containing font characters etc..
-    /// Not valid until first call to `begin_frame()`
-    /// That's because since we don't know the proper `pixels_per_point` until then.
-    pub fn texture(&self) -> Arc<paint::Texture> {
-        self.fonts().texture()
+impl std::cmp::PartialEq for CtxRef {
+    fn eq(&self, other: &CtxRef) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
+}
 
-    /// Will become active at the start of the next frame.
-    /// `pixels_per_point` will be ignored (overwritten at start of each frame with the contents of input)
-    pub fn set_fonts(&self, font_definitions: FontDefinitions) {
-        self.options.lock().font_definitions = font_definitions;
+impl Default for CtxRef {
+    fn default() -> Self {
+        Self(Arc::new(Context {
+            // Start with painting an extra frame to compensate for some widgets
+            // that take two frames before they "settle":
+            repaint_requests: AtomicU32::new(1),
+            ..Context::default()
+        }))
     }
+}
 
-    pub fn style(&self) -> Arc<Style> {
-        self.options.lock().style.clone()
-    }
-
-    pub fn set_style(&self, style: impl Into<Arc<Style>>) {
-        self.options.lock().style = style.into();
-    }
-
-    pub fn pixels_per_point(&self) -> f32 {
-        self.input.pixels_per_point()
-    }
-
-    /// Useful for pixel-perfect rendering
-    pub fn round_to_pixel(&self, point: f32) -> f32 {
-        let pixels_per_point = self.pixels_per_point();
-        (point * pixels_per_point).round() / pixels_per_point
-    }
-
-    /// Useful for pixel-perfect rendering
-    pub fn round_pos_to_pixels(&self, pos: Pos2) -> Pos2 {
-        pos2(self.round_to_pixel(pos.x), self.round_to_pixel(pos.y))
-    }
-
-    /// Useful for pixel-perfect rendering
-    pub fn round_vec_to_pixels(&self, vec: Vec2) -> Vec2 {
-        vec2(self.round_to_pixel(vec.x), self.round_to_pixel(vec.y))
-    }
-
-    /// Useful for pixel-perfect rendering
-    pub fn round_rect_to_pixels(&self, rect: Rect) -> Rect {
-        Rect {
-            min: self.round_pos_to_pixels(rect.min),
-            max: self.round_pos_to_pixels(rect.max),
-        }
-    }
-
-    // ---------------------------------------------------------------------
-
-    /// Constraint the position of a window/area
-    /// so it fits within the screen.
-    pub(crate) fn constrain_window_rect(&self, window: Rect) -> Rect {
-        let mut screen = self.available_rect();
-
-        if window.width() > screen.width() {
-            // Allow overlapping side bars.
-            // This is important for small screens, e.g. mobiles running the web demo.
-            screen.max.x = self.input().screen_rect().max.x;
-            screen.min.x = self.input().screen_rect().min.x;
-        }
-        if window.height() > screen.height() {
-            // Allow overlapping top/bottom bars:
-            screen.max.y = self.input().screen_rect().max.y;
-            screen.min.y = self.input().screen_rect().min.y;
-        }
-
-        let mut pos = window.min;
-
-        // Constrain to screen, unless window is too large to fit:
-        let margin_x = (window.width() - screen.width()).at_least(0.0);
-        let margin_y = (window.height() - screen.height()).at_least(0.0);
-
-        pos.x = pos.x.at_most(screen.right() + margin_x - window.width()); // move left if needed
-        pos.x = pos.x.at_least(screen.left() - margin_x); // move right if needed
-        pos.y = pos.y.at_most(screen.bottom() + margin_y - window.height()); // move right if needed
-        pos.y = pos.y.at_least(screen.top() - margin_y); // move down if needed
-
-        pos = self.round_pos_to_pixels(pos);
-
-        Rect::from_min_size(pos, window.size())
-    }
-
-    // ---------------------------------------------------------------------
-
+impl CtxRef {
     /// Call at the start of every frame.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    pub fn begin_frame(self: &mut Arc<Self>, new_input: RawInput) {
-        let mut self_: Self = (**self).clone();
+    pub fn begin_frame(&mut self, new_input: RawInput) {
+        let mut self_: Context = (*self.0).clone();
         self_.begin_frame_mut(new_input);
-        *self = Arc::new(self_);
-    }
-
-    fn begin_frame_mut(&mut self, new_raw_input: RawInput) {
-        self.memory().begin_frame(&self.input, &new_raw_input);
-
-        self.input = std::mem::take(&mut self.input).begin_frame(new_raw_input);
-        *self.available_rect.lock() = Some(self.input.screen_rect());
-        *self.used_by_panels.lock() = Some(Rect::nothing());
-
-        let mut font_definitions = self.options.lock().font_definitions.clone();
-        font_definitions.pixels_per_point = self.input.pixels_per_point();
-        let same_as_current = match &self.fonts {
-            None => false,
-            Some(fonts) => *fonts.definitions() == font_definitions,
-        };
-        if !same_as_current {
-            self.fonts = Some(Arc::new(Fonts::from_definitions(font_definitions)));
-        }
-
-        // Ensure we register the background area so panels and background ui can catch clicks:
-        let screen_rect = self.input.screen_rect();
-        self.memory().areas.set_state(
-            LayerId::background(),
-            containers::area::State {
-                pos: screen_rect.min,
-                size: screen_rect.size(),
-                interactable: true,
-            },
-        );
-    }
-
-    /// Call at the end of each frame.
-    /// Returns what has happened this frame (`Output`) as well as what you need to paint.
-    /// You can transform the returned paint commands into triangles with a call to
-    /// `Context::tesselate`.
-    #[must_use]
-    pub fn end_frame(&self) -> (Output, Vec<(Rect, PaintCmd)>) {
-        if self.input.wants_repaint() {
-            self.request_repaint();
-        }
-
-        self.memory().end_frame();
-
-        let mut output: Output = std::mem::take(&mut self.output());
-        if self.repaint_requests.load(SeqCst) > 0 {
-            self.repaint_requests.fetch_sub(1, SeqCst);
-            output.needs_repaint = true;
-        }
-
-        let paint_commands = self.drain_paint_lists();
-        (output, paint_commands)
-    }
-
-    fn drain_paint_lists(&self) -> Vec<(Rect, PaintCmd)> {
-        let memory = self.memory();
-        self.graphics().drain(memory.areas.order()).collect()
-    }
-
-    /// Tesselate the given paint commands into triangle meshes.
-    pub fn tesselate(&self, paint_commands: Vec<(Rect, PaintCmd)>) -> PaintJobs {
-        let mut tesselation_options = self.options.lock().tesselation_options;
-        tesselation_options.aa_size = 1.0 / self.pixels_per_point();
-        let paint_stats = PaintStats::from_paint_commands(&paint_commands); // TODO: internal allocations
-        let paint_jobs = tessellator::tessellate_paint_commands(
-            paint_commands,
-            tesselation_options,
-            self.fonts(),
-        );
-        *self.paint_stats.lock() = paint_stats.with_paint_jobs(&paint_jobs);
-        paint_jobs
-    }
-
-    // ---------------------------------------------------------------------
-
-    /// Shrink `available_rect()`.
-    pub(crate) fn allocate_left_panel(&self, panel_rect: Rect) {
-        debug_assert!(
-            panel_rect.min == self.available_rect().min,
-            "Mismatching panels. You must not create a panel from within another panel."
-        );
-        let mut remainder = self.available_rect();
-        remainder.min.x = panel_rect.max.x;
-        *self.available_rect.lock() = Some(remainder);
-        self.register_panel(panel_rect);
-    }
-
-    /// Shrink `available_rect()`.
-    pub(crate) fn allocate_top_panel(&self, panel_rect: Rect) {
-        debug_assert!(
-            panel_rect.min == self.available_rect().min,
-            "Mismatching panels. You must not create a panel from within another panel."
-        );
-        let mut remainder = self.available_rect();
-        remainder.min.y = panel_rect.max.y;
-        *self.available_rect.lock() = Some(remainder);
-        self.register_panel(panel_rect);
-    }
-
-    /// Shrink `available_rect()`.
-    pub(crate) fn allocate_central_panel(&self, panel_rect: Rect) {
-        let mut available_rect = self.available_rect.lock();
-        debug_assert!(
-            *available_rect != Some(Rect::nothing()),
-            "You already created a `CentralPanel` this frame!"
-        );
-        *available_rect = Some(Rect::nothing()); // Nothing left after this
-        self.register_panel(panel_rect);
-    }
-
-    fn register_panel(&self, panel_rect: Rect) {
-        let mut used = self.used_by_panels.lock();
-        *used = Some(used.unwrap_or(Rect::nothing()).union(panel_rect));
-    }
-
-    /// How much space is used by panels and windows.
-    pub fn used_rect(&self) -> Rect {
-        let mut used = self.used_by_panels.lock().unwrap_or(Rect::nothing());
-        for window in self.memory().areas.visible_windows() {
-            used = used.union(window.rect());
-        }
-        used
-    }
-
-    /// How much space is used by panels and windows.
-    /// You can shrink your Egui area to this size and still fit all Egui components.
-    pub fn used_size(&self) -> Vec2 {
-        self.used_rect().max - Pos2::new(0.0, 0.0)
+        *self = Self(Arc::new(self_));
     }
 
     // ---------------------------------------------------------------------
 
     /// If the given `Id` is not unique, an error will be printed at the given position.
     /// Call this for `Id`:s that need interaction or persistence.
-    pub(crate) fn register_interaction_id(self: &Arc<Self>, id: Id, new_pos: Pos2) {
+    pub(crate) fn register_interaction_id(&self, id: Id, new_pos: Pos2) {
         let prev_pos = self.memory().used_ids.insert(id, new_pos);
         if let Some(prev_pos) = prev_pos {
             if prev_pos.distance(new_pos) < 0.1 {
@@ -389,68 +193,9 @@ impl Context {
 
     // ---------------------------------------------------------------------
 
-    /// Is the mouse over any Egui area?
-    pub fn is_mouse_over_area(&self) -> bool {
-        if let Some(mouse_pos) = self.input.mouse.pos {
-            if let Some(layer) = self.layer_id_at(mouse_pos) {
-                if layer.order == Order::Background {
-                    if let Some(available_rect) = *self.available_rect.lock() {
-                        // "available_rect" is the area that Egui is NOT using.
-                        !available_rect.contains(mouse_pos)
-                    } else {
-                        false
-                    }
-                } else {
-                    true
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    }
-
-    /// True if Egui is currently interested in the mouse.
-    /// Could be the mouse is hovering over a Egui window,
-    /// or the user is dragging an Egui widget.
-    /// If false, the mouse is outside of any Egui area and so
-    /// you may be interested in what it is doing (e.g. controlling your game).
-    /// Returns `false` if a drag starts outside of Egui and then moves over an Egui window.
-    pub fn wants_mouse_input(&self) -> bool {
-        self.is_using_mouse() || (self.is_mouse_over_area() && !self.input().mouse.down)
-    }
-
-    /// Is Egui currently using the mouse position (e.g. dragging a slider).
-    /// NOTE: this will return false if the mouse is just hovering over an Egui window.
-    pub fn is_using_mouse(&self) -> bool {
-        self.memory().interaction.is_using_mouse()
-    }
-
-    /// If true, Egui is currently listening on text input (e.g. typing text in a `TextEdit`).
-    pub fn wants_keyboard_input(&self) -> bool {
-        self.memory().interaction.kb_focus_id.is_some()
-    }
-
-    // ---------------------------------------------------------------------
-
-    pub fn layer_id_at(&self, pos: Pos2) -> Option<LayerId> {
-        let resize_grab_radius_side = self.style().interaction.resize_grab_radius_side;
-        self.memory().layer_id_at(pos, resize_grab_radius_side)
-    }
-
-    pub fn contains_mouse(&self, layer_id: LayerId, clip_rect: Rect, rect: Rect) -> bool {
-        let rect = rect.intersect(clip_rect);
-        if let Some(mouse_pos) = self.input.mouse.pos {
-            rect.contains(mouse_pos) && self.layer_id_at(mouse_pos) == Some(layer_id)
-        } else {
-            false
-        }
-    }
-
     /// Use `ui.interact` instead
     pub(crate) fn interact(
-        self: &Arc<Self>,
+        &self,
         layer_id: LayerId,
         clip_rect: Rect,
         item_spacing: Vec2,
@@ -578,6 +323,340 @@ impl Context {
             }
         }
     }
+
+    pub fn debug_painter(&self) -> Painter {
+        Painter::new(self.clone(), LayerId::debug(), self.input.screen_rect())
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+/// Thi is the first thing you need when working with Egui.
+///
+/// Contains the input state, memory, options and output.
+/// `Ui`:s keep an `Arc` pointer to this.
+/// This allows us to create several child `Ui`:s at once,
+/// all working against the same shared Context.
+// TODO: too many mutexes. Maybe put it all behind one Mutex instead.
+#[derive(Default)]
+pub struct Context {
+    options: Mutex<Options>,
+    /// None until first call to `begin_frame`.
+    fonts: Option<Arc<Fonts>>,
+    memory: Arc<Mutex<Memory>>,
+    animation_manager: Arc<Mutex<AnimationManager>>,
+
+    input: InputState,
+
+    /// State that is collected during a frame and then cleared
+    frame_state: Mutex<FrameState>,
+
+    // The output of a frame:
+    graphics: Mutex<GraphicLayers>,
+    output: Mutex<Output>,
+
+    paint_stats: Mutex<PaintStats>,
+
+    /// While positive, keep requesting repaints. Decrement at the end of each frame.
+    repaint_requests: AtomicU32,
+}
+
+impl Clone for Context {
+    fn clone(&self) -> Self {
+        Context {
+            options: self.options.clone(),
+            fonts: self.fonts.clone(),
+            memory: self.memory.clone(),
+            animation_manager: self.animation_manager.clone(),
+            input: self.input.clone(),
+            frame_state: self.frame_state.clone(),
+            graphics: self.graphics.clone(),
+            output: self.output.clone(),
+            paint_stats: self.paint_stats.clone(),
+            repaint_requests: self.repaint_requests.load(SeqCst).into(),
+        }
+    }
+}
+
+impl Context {
+    #[allow(clippy::new_ret_no_self)]
+    #[deprecated = "Use CtxRef::default() instead"]
+    pub fn new() -> CtxRef {
+        CtxRef::default()
+    }
+
+    /// How much space is still available after panels has been added.
+    /// This is the "background" area, what Egui doesn't cover with panels (but may cover with windows).
+    /// This is also the area to which windows are constrained.
+    pub fn available_rect(&self) -> Rect {
+        self.frame_state.lock().available_rect()
+    }
+
+    pub fn memory(&self) -> MutexGuard<'_, Memory> {
+        self.memory.lock()
+    }
+
+    pub fn graphics(&self) -> MutexGuard<'_, GraphicLayers> {
+        self.graphics.lock()
+    }
+
+    pub fn output(&self) -> MutexGuard<'_, Output> {
+        self.output.lock()
+    }
+
+    pub(crate) fn frame_state(&self) -> MutexGuard<'_, FrameState> {
+        self.frame_state.lock()
+    }
+
+    /// Call this if there is need to repaint the UI, i.e. if you are showing an animation.
+    /// If this is called at least once in a frame, then there will be another frame right after this.
+    /// Call as many times as you wish, only one repaint will be issued.
+    pub fn request_repaint(&self) {
+        // request two frames of repaint, just to cover some corner cases (frame delays):
+        let times_to_repaint = 2;
+        self.repaint_requests.store(times_to_repaint, SeqCst);
+    }
+
+    pub fn input(&self) -> &InputState {
+        &self.input
+    }
+
+    /// Not valid until first call to `begin_frame()`
+    /// That's because since we don't know the proper `pixels_per_point` until then.
+    pub fn fonts(&self) -> &Fonts {
+        &*self
+            .fonts
+            .as_ref()
+            .expect("No fonts available until first call to Context::begin_frame()`")
+    }
+
+    /// The Egui texture, containing font characters etc..
+    /// Not valid until first call to `begin_frame()`
+    /// That's because since we don't know the proper `pixels_per_point` until then.
+    pub fn texture(&self) -> Arc<paint::Texture> {
+        self.fonts().texture()
+    }
+
+    /// Will become active at the start of the next frame.
+    /// `pixels_per_point` will be ignored (overwritten at start of each frame with the contents of input)
+    pub fn set_fonts(&self, font_definitions: FontDefinitions) {
+        self.options.lock().font_definitions = font_definitions;
+    }
+
+    pub fn style(&self) -> Arc<Style> {
+        self.options.lock().style.clone()
+    }
+
+    pub fn set_style(&self, style: impl Into<Arc<Style>>) {
+        self.options.lock().style = style.into();
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        self.input.pixels_per_point()
+    }
+
+    /// Useful for pixel-perfect rendering
+    pub fn round_to_pixel(&self, point: f32) -> f32 {
+        let pixels_per_point = self.pixels_per_point();
+        (point * pixels_per_point).round() / pixels_per_point
+    }
+
+    /// Useful for pixel-perfect rendering
+    pub fn round_pos_to_pixels(&self, pos: Pos2) -> Pos2 {
+        pos2(self.round_to_pixel(pos.x), self.round_to_pixel(pos.y))
+    }
+
+    /// Useful for pixel-perfect rendering
+    pub fn round_vec_to_pixels(&self, vec: Vec2) -> Vec2 {
+        vec2(self.round_to_pixel(vec.x), self.round_to_pixel(vec.y))
+    }
+
+    /// Useful for pixel-perfect rendering
+    pub fn round_rect_to_pixels(&self, rect: Rect) -> Rect {
+        Rect {
+            min: self.round_pos_to_pixels(rect.min),
+            max: self.round_pos_to_pixels(rect.max),
+        }
+    }
+
+    // ---------------------------------------------------------------------
+
+    /// Constraint the position of a window/area
+    /// so it fits within the screen.
+    pub(crate) fn constrain_window_rect(&self, window: Rect) -> Rect {
+        let mut screen = self.available_rect();
+
+        if window.width() > screen.width() {
+            // Allow overlapping side bars.
+            // This is important for small screens, e.g. mobiles running the web demo.
+            screen.max.x = self.input().screen_rect().max.x;
+            screen.min.x = self.input().screen_rect().min.x;
+        }
+        if window.height() > screen.height() {
+            // Allow overlapping top/bottom bars:
+            screen.max.y = self.input().screen_rect().max.y;
+            screen.min.y = self.input().screen_rect().min.y;
+        }
+
+        let mut pos = window.min;
+
+        // Constrain to screen, unless window is too large to fit:
+        let margin_x = (window.width() - screen.width()).at_least(0.0);
+        let margin_y = (window.height() - screen.height()).at_least(0.0);
+
+        pos.x = pos.x.at_most(screen.right() + margin_x - window.width()); // move left if needed
+        pos.x = pos.x.at_least(screen.left() - margin_x); // move right if needed
+        pos.y = pos.y.at_most(screen.bottom() + margin_y - window.height()); // move right if needed
+        pos.y = pos.y.at_least(screen.top() - margin_y); // move down if needed
+
+        pos = self.round_pos_to_pixels(pos);
+
+        Rect::from_min_size(pos, window.size())
+    }
+
+    // ---------------------------------------------------------------------
+
+    fn begin_frame_mut(&mut self, new_raw_input: RawInput) {
+        self.memory().begin_frame(&self.input, &new_raw_input);
+
+        self.input = std::mem::take(&mut self.input).begin_frame(new_raw_input);
+        self.frame_state.lock().begin_frame(&self.input);
+
+        let mut font_definitions = self.options.lock().font_definitions.clone();
+        font_definitions.pixels_per_point = self.input.pixels_per_point();
+        let same_as_current = match &self.fonts {
+            None => false,
+            Some(fonts) => *fonts.definitions() == font_definitions,
+        };
+        if !same_as_current {
+            self.fonts = Some(Arc::new(Fonts::from_definitions(font_definitions)));
+        }
+
+        // Ensure we register the background area so panels and background ui can catch clicks:
+        let screen_rect = self.input.screen_rect();
+        self.memory().areas.set_state(
+            LayerId::background(),
+            containers::area::State {
+                pos: screen_rect.min,
+                size: screen_rect.size(),
+                interactable: true,
+            },
+        );
+    }
+
+    /// Call at the end of each frame.
+    /// Returns what has happened this frame (`Output`) as well as what you need to paint.
+    /// You can transform the returned paint commands into triangles with a call to
+    /// `Context::tesselate`.
+    #[must_use]
+    pub fn end_frame(&self) -> (Output, Vec<(Rect, PaintCmd)>) {
+        if self.input.wants_repaint() {
+            self.request_repaint();
+        }
+
+        self.memory().end_frame();
+
+        let mut output: Output = std::mem::take(&mut self.output());
+        if self.repaint_requests.load(SeqCst) > 0 {
+            self.repaint_requests.fetch_sub(1, SeqCst);
+            output.needs_repaint = true;
+        }
+
+        let paint_commands = self.drain_paint_lists();
+        (output, paint_commands)
+    }
+
+    fn drain_paint_lists(&self) -> Vec<(Rect, PaintCmd)> {
+        let memory = self.memory();
+        self.graphics().drain(memory.areas.order()).collect()
+    }
+
+    /// Tesselate the given paint commands into triangle meshes.
+    pub fn tesselate(&self, paint_commands: Vec<(Rect, PaintCmd)>) -> PaintJobs {
+        let mut tesselation_options = self.options.lock().tesselation_options;
+        tesselation_options.aa_size = 1.0 / self.pixels_per_point();
+        let paint_stats = PaintStats::from_paint_commands(&paint_commands); // TODO: internal allocations
+        let paint_jobs = tessellator::tessellate_paint_commands(
+            paint_commands,
+            tesselation_options,
+            self.fonts(),
+        );
+        *self.paint_stats.lock() = paint_stats.with_paint_jobs(&paint_jobs);
+        paint_jobs
+    }
+
+    // ---------------------------------------------------------------------
+
+    /// How much space is used by panels and windows.
+    pub fn used_rect(&self) -> Rect {
+        let mut used = self.frame_state().used_by_panels;
+        for window in self.memory().areas.visible_windows() {
+            used = used.union(window.rect());
+        }
+        used
+    }
+
+    /// How much space is used by panels and windows.
+    /// You can shrink your Egui area to this size and still fit all Egui components.
+    pub fn used_size(&self) -> Vec2 {
+        self.used_rect().max - Pos2::new(0.0, 0.0)
+    }
+
+    // ---------------------------------------------------------------------
+
+    /// Is the mouse over any Egui area?
+    pub fn is_mouse_over_area(&self) -> bool {
+        if let Some(mouse_pos) = self.input.mouse.pos {
+            if let Some(layer) = self.layer_id_at(mouse_pos) {
+                if layer.order == Order::Background {
+                    !self.frame_state().unused_rect.contains(mouse_pos)
+                } else {
+                    true
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// True if Egui is currently interested in the mouse.
+    /// Could be the mouse is hovering over a Egui window,
+    /// or the user is dragging an Egui widget.
+    /// If false, the mouse is outside of any Egui area and so
+    /// you may be interested in what it is doing (e.g. controlling your game).
+    /// Returns `false` if a drag starts outside of Egui and then moves over an Egui window.
+    pub fn wants_mouse_input(&self) -> bool {
+        self.is_using_mouse() || (self.is_mouse_over_area() && !self.input().mouse.down)
+    }
+
+    /// Is Egui currently using the mouse position (e.g. dragging a slider).
+    /// NOTE: this will return false if the mouse is just hovering over an Egui window.
+    pub fn is_using_mouse(&self) -> bool {
+        self.memory().interaction.is_using_mouse()
+    }
+
+    /// If true, Egui is currently listening on text input (e.g. typing text in a `TextEdit`).
+    pub fn wants_keyboard_input(&self) -> bool {
+        self.memory().interaction.kb_focus_id.is_some()
+    }
+
+    // ---------------------------------------------------------------------
+
+    pub fn layer_id_at(&self, pos: Pos2) -> Option<LayerId> {
+        let resize_grab_radius_side = self.style().interaction.resize_grab_radius_side;
+        self.memory().layer_id_at(pos, resize_grab_radius_side)
+    }
+
+    pub fn contains_mouse(&self, layer_id: LayerId, clip_rect: Rect, rect: Rect) -> bool {
+        let rect = rect.intersect(clip_rect);
+        if let Some(mouse_pos) = self.input.mouse.pos {
+            rect.contains(mouse_pos) && self.layer_id_at(mouse_pos) == Some(layer_id)
+        } else {
+            false
+        }
+    }
 }
 
 /// ## Animation
@@ -600,13 +679,6 @@ impl Context {
             self.request_repaint();
         }
         animated_value
-    }
-}
-
-/// ## Painting
-impl Context {
-    pub fn debug_painter(self: &Arc<Self>) -> Painter {
-        Painter::new(self.clone(), LayerId::debug(), self.input.screen_rect())
     }
 }
 

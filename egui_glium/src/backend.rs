@@ -64,15 +64,15 @@ fn create_display(
 }
 
 /// Run an egui app
-pub fn run(title: &str, mut storage: Box<dyn egui::app::Storage>, mut app: Box<dyn App>) -> ! {
+pub fn run(mut storage: Box<dyn egui::app::Storage>, mut app: Box<dyn App>) -> ! {
     let window_settings: Option<WindowSettings> =
         egui::app::get_value(storage.as_ref(), WINDOW_KEY);
     let event_loop = glutin::event_loop::EventLoop::with_user_event();
-    let display = create_display(title, window_settings, &event_loop);
+    let display = create_display(app.name(), window_settings, &event_loop);
 
     let repaint_signal = std::sync::Arc::new(GliumRepaintSignal(event_loop.create_proxy()));
 
-    let mut ctx = egui::Context::new();
+    let mut ctx = egui::CtxRef::default();
     *ctx.memory() = egui::app::get_value(storage.as_ref(), EGUI_MEMORY_KEY).unwrap_or_default();
     app.setup(&ctx);
 
@@ -111,7 +111,13 @@ pub fn run(title: &str, mut storage: Box<dyn egui::app::Storage>, mut app: Box<d
 
             let frame_time = (Instant::now() - egui_start).as_secs_f64() as f32;
             previous_frame_time = Some(frame_time);
-            painter.paint_jobs(&display, ctx.pixels_per_point(), paint_jobs, &ctx.texture());
+            painter.paint_jobs(
+                &display,
+                ctx.pixels_per_point(),
+                app.clear_color(),
+                paint_jobs,
+                &ctx.texture(),
+            );
 
             {
                 let egui::app::AppOutput {

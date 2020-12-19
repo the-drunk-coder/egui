@@ -1,5 +1,4 @@
-use crate::{app, demos, util::History, Context, Ui};
-use std::sync::Arc;
+use crate::{app, demos, util::History, CtxRef, Ui};
 
 // ----------------------------------------------------------------------------
 
@@ -278,11 +277,11 @@ impl DemoApp {
 }
 
 impl app::App for DemoApp {
-    fn ui(
-        &mut self,
-        ctx: &Arc<Context>,
-        integration_context: &mut crate::app::IntegrationContext<'_>,
-    ) {
+    fn name(&self) -> &str {
+        "Egui Demo"
+    }
+
+    fn ui(&mut self, ctx: &CtxRef, integration_context: &mut crate::app::IntegrationContext<'_>) {
         self.frame_history
             .on_new_frame(ctx.input().time, integration_context.info.cpu_usage);
 

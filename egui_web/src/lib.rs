@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-#![deny(warnings)]
+#![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
 #![warn(clippy::all)]
 
 pub mod backend;
@@ -92,24 +92,42 @@ pub fn pos_from_touch_event(event: &web_sys::TouchEvent) -> egui::Pos2 {
     }
 }
 
+pub fn canvas_size_in_points(canvas_id: &str) -> egui::Vec2 {
+    let canvas = canvas_element(canvas_id).unwrap();
+    let pixels_per_point = native_pixels_per_point();
+    egui::vec2(
+        canvas.width() as f32 / pixels_per_point,
+        canvas.height() as f32 / pixels_per_point,
+    )
+}
+
 pub fn resize_canvas_to_screen_size(canvas_id: &str) -> Option<()> {
     let canvas = canvas_element(canvas_id)?;
 
-    let screen_size = screen_size_in_native_points()?;
+    let screen_size_points = screen_size_in_native_points()?;
     let pixels_per_point = native_pixels_per_point();
+
+    let canvas_size_pixels = pixels_per_point * screen_size_points;
+    // Some browsers get slow with huge WebGL canvases, so we limit the size:
+    let max_size_pixels = egui::vec2(2048.0, 4096.0);
+    let canvas_size_pixels = canvas_size_pixels.min(max_size_pixels);
+    let canvas_size_points = canvas_size_pixels / pixels_per_point;
+
     canvas
         .style()
-        .set_property("width", &format!("{}px", screen_size.x))
+        .set_property("width", &format!("{}px", canvas_size_points.x))
         .ok()?;
     canvas
         .style()
-        .set_property("height", &format!("{}px", screen_size.y))
+        .set_property("height", &format!("{}px", canvas_size_points.y))
         .ok()?;
-    canvas.set_width((screen_size.x * pixels_per_point).round() as u32);
-    canvas.set_height((screen_size.y * pixels_per_point).round() as u32);
+    canvas.set_width(canvas_size_pixels.x.round() as u32);
+    canvas.set_height(canvas_size_pixels.y.round() as u32);
 
     Some(())
 }
+
+// ----------------------------------------------------------------------------
 
 pub fn local_storage() -> Option<web_sys::Storage> {
     web_sys::window()?.local_storage().ok()?
@@ -153,6 +171,20 @@ pub fn save_memory(ctx: &egui::Context) {
         }
     }
 }
+
+pub struct LocalStorage {}
+
+impl egui::app::Storage for LocalStorage {
+    fn get_string(&self, key: &str) -> Option<String> {
+        local_storage_get(key)
+    }
+    fn set_string(&mut self, key: &str, value: String) {
+        local_storage_set(key, &value);
+    }
+    fn flush(&mut self) {}
+}
+
+// ----------------------------------------------------------------------------
 
 pub fn handle_output(output: &egui::Output) {
     let egui::Output {
