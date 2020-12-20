@@ -500,8 +500,7 @@ pub struct CallbackTextEdit<'t>  {
     id: Option<Id>,
     id_source: Option<Id>,
     text_style: Option<TextStyle>,
-    text_color: Option<Srgba>,
-    multiline: bool,
+    text_color: Option<Srgba>,    
     enabled: bool,
     desired_width: Option<f32>,
     desired_height_rows: usize,
@@ -518,7 +517,6 @@ impl<'t> CallbackTextEdit<'t>  {
             id_source: None,
             text_style: None,
             text_color: None,
-            multiline: true,
             enabled: true,
             desired_width: None,
             desired_height_rows: 4,
@@ -586,7 +584,6 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             id_source,
             text_style,
             text_color,
-            multiline,
             enabled,
             desired_width,
             desired_height_rows,
@@ -597,12 +594,9 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
         let font = &ui.fonts()[text_style];
         let line_spacing = font.row_height();
         let available_width = ui.available_width();
-        let mut galley = if multiline {
-            font.layout_multiline(text.clone(), available_width)
-        } else {
-            font.layout_single_line(text.clone())
-        };
 
+	let mut galley = font.layout_multiline(text.clone(), available_width);
+        
         let desired_width = desired_width.unwrap_or_else(|| ui.style().spacing.text_edit_width);
         let desired_height = (desired_height_rows.at_least(1) as f32) * line_spacing;
         let desired_size = vec2(
@@ -745,7 +739,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			if multiline && modifiers.command {			    
+			if modifiers.command {			    
 			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
 				let cup = CursorPair {
 				    primary: galley.from_ccursor(sexp_cursors.primary),
@@ -760,15 +754,11 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 				}				    
 			    }			    			    
 			    break;
-			} else if multiline {
+			} else {
                             let mut ccursor = delete_selected(text, &cursorp);
                             insert_text(&mut ccursor, text, "\n");
                             Some(CCursorPair::one(ccursor))
-                        } else {
-                            // Common to end input with enter
-                            ui.memory().surrender_kb_focus(id);
-                            break;
-                        }
+                        } 
                     }
                     Event::Key {
                         key: Key::Escape,
@@ -807,11 +797,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                 if let Some(new_ccursorp) = did_mutate_text {
                     // Layout again to avoid frame delay, and to keep `text` and `galley` in sync.
                     let font = &ui.fonts()[text_style];
-                    galley = if multiline {
-                        font.layout_multiline(text.clone(), available_width)
-                    } else {
-                        font.layout_single_line(text.clone())
-                    };
+                    galley = font.layout_multiline(text.clone(), available_width);
 
                     // Set cursorp using new galley:
                     cursorp = CursorPair {
