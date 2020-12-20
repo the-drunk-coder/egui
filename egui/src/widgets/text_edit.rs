@@ -745,18 +745,19 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			if multiline && modifiers.command {
+			if multiline && modifiers.command {			    
 			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
 				let cup = CursorPair {
 				    primary: galley.from_ccursor(sexp_cursors.primary),
 				    secondary: galley.from_ccursor(sexp_cursors.secondary),
 				};
 				let sel = selected_str(text, &cup);
-				//println!("{}", sel);
 				if let Some(cb) = eval_callback {
 				    let mut cb_loc = cb.lock();
 				    cb_loc(&sel.to_string());
-				}
+				} else {
+				    println!("no callback!");
+				}				    
 			    }			    			    
 			    break;
 			} else if multiline {
