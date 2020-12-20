@@ -701,7 +701,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                     }
                 })
                 .unwrap_or_else(|| CursorPair::one(galley.end()));
-
+	    
             // We feed state to the undoer both before and after handling input
             // so that the undoer creates automatic saves even when there are no events for a while.
             state
@@ -746,10 +746,18 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			if multiline && modifiers.command {
-			    if let Some(cb) = eval_callback {
-				let mut cb_loc = cb.lock();
-				cb_loc(text);
-			    }
+			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+				let cup = CursorPair {
+				    primary: galley.from_ccursor(sexp_cursors.primary),
+				    secondary: galley.from_ccursor(sexp_cursors.secondary),
+				};
+				let sel = selected_str(text, &cup);
+				//println!("{}", sel);
+				if let Some(cb) = eval_callback {
+				    let mut cb_loc = cb.lock();
+				    cb_loc(&sel.to_string());
+				}
+			    }			    			    
 			    break;
 			} else if multiline {
                             let mut ccursor = delete_selected(text, &cursorp);
@@ -1208,6 +1216,84 @@ fn select_word_at(text: &str, ccursor: CCursor) -> CCursorPair {
             let max = ccursor_next_word(text, ccursor);
             CCursorPair::two(ccursor, max)
         }
+    }
+}
+
+fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
+    let [min, _] = cursorp.sorted();
+    
+    let pos = min.ccursor.index;
+    let rev_pos = text.len() - pos;
+    
+    let mut it_l = text.chars().rev();
+    let mut it_r = text.chars();
+
+    let mut l_pos = pos;
+    let mut r_pos = pos;
+  	
+    for _ in 0..rev_pos {
+	it_l.next();
+    }
+
+    for _ in 0..pos {	
+	it_r.next();
+    }
+
+    let mut balance:i32 = 0;
+    let mut newline_found = false;
+    while let Some(l_char) = it_l.next() {
+	if l_char == '\n' && newline_found { // two newlines - assume end
+	    break;
+	} else if l_char == '\n' {
+	    l_pos -= 1;
+	    newline_found = true;	    
+	} else if l_char == '(' {
+	    l_pos -= 1;
+	    balance += 1;
+	    newline_found = false;
+	} else if l_char == ')' {
+	    l_pos -= 1;
+	    balance -= 1;
+	    newline_found = false;	    
+	} else {
+	    l_pos -= 1;
+	    newline_found = false;	    
+	}
+    }
+
+    newline_found = false;
+    while let Some(r_char) = it_r.next() {
+	if r_char == '\n' && newline_found { // two newlines - assume end
+	    break;
+	} else if r_char == '\n' {
+	    r_pos += 1;
+	    newline_found = true;	    
+	} else if r_char == '(' {
+	    r_pos += 1;
+	    balance += 1;
+	    newline_found = false;	    
+	} else if r_char == ')' {
+	    r_pos += 1;
+	    balance -= 1;
+	    newline_found = false;	    
+	} else {
+	    r_pos += 1;
+	    newline_found = false;	    
+	}	
+    }
+
+    if balance == 0 {
+	let left = CCursor {
+            index: l_pos,
+            prefer_next_row: true,
+	};
+	let right = CCursor {
+            index: r_pos,
+            prefer_next_row: false,
+	};
+	Some(CCursorPair::two(right, left))
+    } else {
+	None
     }
 }
 
