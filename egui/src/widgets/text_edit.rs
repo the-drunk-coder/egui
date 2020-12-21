@@ -492,7 +492,7 @@ impl<'t> Widget for TextEdit<'t> {
 ///     // use my_string
 /// }
 /// ```
-use std::sync::*;
+use std::sync::{*, atomic::{Ordering, AtomicBool}};
 use parking_lot::Mutex;
 
 pub struct CallbackTextEdit<'t>  {
@@ -505,12 +505,13 @@ pub struct CallbackTextEdit<'t>  {
     desired_width: Option<f32>,
     desired_height_rows: usize,
     eval_callback: Option<Arc<Mutex<dyn FnMut(&String)>>>,
+    selection_toggle: &'t mut AtomicBool,
 }
 
 impl<'t> CallbackTextEdit<'t>  {
             
     /// A `TextEdit` for multiple lines. Pressing enter key will create a new line.
-    pub fn multiline(text: &'t mut String) -> Self {
+    pub fn multiline(text: &'t mut String, selection_toggle: &'t mut AtomicBool) -> Self {
         CallbackTextEdit {
             text,
             id: None,
@@ -521,6 +522,7 @@ impl<'t> CallbackTextEdit<'t>  {
             desired_width: None,
             desired_height_rows: 4,
 	    eval_callback: None,
+	    selection_toggle,
         }
     }
 
@@ -588,6 +590,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             desired_width,
             desired_height_rows,
 	    eval_callback,
+	    mut selection_toggle
         } = self;
 
         let text_style = text_style.unwrap_or_else(|| ui.style().body_text_style);
@@ -630,7 +633,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             if let Some(mouse_pos) = ui.input().mouse.pos {
                 // TODO: triple-click to select whole paragraph
                 // TODO: drag selected text to either move or clone (ctrl on windows, alt on mac)
-
+		
                 let cursor_at_mouse = galley.cursor_from_pos(mouse_pos - response.rect.min);
 
                 if response.hovered {
@@ -654,8 +657,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         } else {
                             state.cursorp = Some(CursorPair::one(cursor_at_mouse));
                         }
-                    } else {
-                        state.cursorp = Some(CursorPair::one(cursor_at_mouse));
+                    } else {		
+                        state.cursorp = Some(CursorPair::one(cursor_at_mouse));			
                     }
                 } else if ui.input().mouse.down && response.active {
                     if let Some(cursorp) = &mut state.cursorp {
@@ -703,7 +706,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                 .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));
 
             for event in &ui.input().events {
-                let did_mutate_text = match event {
+		let did_mutate_text = match event {
                     Event::Copy => {
                         if cursorp.is_empty() {
                             ui.ctx().output().copied_text = text.clone();
@@ -734,6 +737,27 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                             None
                         }
                     }
+		    Event::Key {
+                        key: Key::Tab,
+                        pressed: true,
+                        ..
+                    } => {
+			println!("tab");
+			let mut ccursor = delete_selected(text, &cursorp);
+                        insert_text(&mut ccursor, text, "  ");
+                        Some(CCursorPair::one(ccursor))
+		    }
+		    Event::Key {
+                        key: Key::Space,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			if modifiers.command {
+			    let mut sel = selection_toggle.load(Ordering::SeqCst);			   			    
+			    selection_toggle.store(!sel, Ordering::SeqCst);			    
+			}
+			None
+		    }
                     Event::Key {
                         key: Key::Enter,
                         pressed: true,
@@ -784,7 +808,74 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                             None
                         }
                     }
-
+		    
+		    Event::Key {
+                        key: Key::ArrowLeft,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowLeft, modifiers);
+			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    Event::Key {
+                        key: Key::ArrowRight,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers);
+			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    Event::Key {
+                        key: Key::ArrowUp,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowUp, modifiers);
+			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    Event::Key {
+                        key: Key::ArrowDown,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowDown, modifiers);
+			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    Event::Key {
+                        key: Key::Home,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			move_single_cursor(&mut cursorp.primary, &galley, Key::Home, modifiers);
+			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    Event::Key {
+                        key: Key::End,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			move_single_cursor(&mut cursorp.primary, &galley, Key::End, modifiers);
+			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    
                     Event::Key {
                         key,
                         pressed: true,
@@ -1034,7 +1125,7 @@ fn on_key_press(
     text: &mut String,
     galley: &Galley,
     key: Key,
-    modifiers: &Modifiers,
+    modifiers: &Modifiers,    
 ) -> Option<CCursorPair> {
     match key {
         Key::Backspace => {
@@ -1071,7 +1162,7 @@ fn on_key_press(
             };
             Some(CCursorPair::one(ccursor))
         }
-
+	
         Key::A if modifiers.command => {
             // select all
             *cursorp = CursorPair::two(Cursor::default(), galley.end());
