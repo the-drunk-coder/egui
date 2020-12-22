@@ -263,6 +263,8 @@ pub enum Key {
     PageDown,
     PageUp,
     Tab,
+    LParen, // needed for my lisp-y editor ...
+    RParen,
 
     A, // Used for cmd+A (select All)
     K, // Used for ctrl+K (delete text after cursor)

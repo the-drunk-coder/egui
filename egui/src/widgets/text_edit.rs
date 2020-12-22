@@ -757,7 +757,17 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			    selection_toggle.store(!sel, Ordering::SeqCst);			    
 			}
 			None
-		    }
+		    },
+		    Event::Key {
+                        key: Key::LParen,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			let selection = selected_str(text, &cursorp).clone().to_string();
+			let mut ccursor = delete_selected(text, &cursorp);
+			insert_text(&mut ccursor, text, format!("({})", selection).as_str());
+			Some(CCursorPair::one(ccursor))
+		    }			
                     Event::Key {
                         key: Key::Enter,
                         pressed: true,
@@ -777,7 +787,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 				    println!("no callback!");
 				}				    
 			    }			    			    
-			    break;
+			    break; // need to break here because of callback move ...
 			} else {
                             let mut ccursor = delete_selected(text, &cursorp);
                             insert_text(&mut ccursor, text, "\n");

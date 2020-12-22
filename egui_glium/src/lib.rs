@@ -61,8 +61,18 @@ pub fn input_to_egui(
             if printable_char(ch)
                 && !input_state.raw.modifiers.ctrl
                 && !input_state.raw.modifiers.mac_cmd
-            {
-                input_state.raw.events.push(Event::Text(ch.to_string()));
+            {		
+		if ch == '(' {
+		    //let pressed = input_state == glutin::event::ElementState::Pressed;
+		    input_state.raw.events.push(Event::Key {
+                        key: Key::LParen,
+                        pressed: true,
+                        modifiers: input_state.raw.modifiers,
+                    });
+		} else {
+		    input_state.raw.events.push(Event::Text(ch.to_string()));
+		}
+		
             }
         }
         KeyboardInput { input, .. } => {
@@ -155,7 +165,7 @@ fn printable_char(chr: char) -> bool {
 
 pub fn translate_virtual_key_code(key: VirtualKeyCode) -> Option<egui::Key> {
     use VirtualKeyCode::*;
-
+        
     Some(match key {
         Escape => Key::Escape,
         Insert => Key::Insert,
