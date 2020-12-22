@@ -772,7 +772,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			// clear selection
 			selection_toggle.store(false, Ordering::SeqCst);
 			// go to opening paren so the function name can be entered ... 
-			ccursor.index -= (selection_len + 1);			    
+			ccursor.index -= selection_len + 1;			    
 			Some(CCursorPair::one(ccursor))
 		    }			
                     Event::Key {
