@@ -63,7 +63,8 @@ pub fn input_to_egui(
                 && !input_state.raw.modifiers.mac_cmd
             {		
 		if ch == '(' {
-		    //let pressed = input_state == glutin::event::ElementState::Pressed;
+		    // this is a bit hacky, but it makes it easier to handle
+		    // parens in the text_edit widget, i.e. for automatic pairs etc ...
 		    input_state.raw.events.push(Event::Key {
                         key: Key::LParen,
                         pressed: true,

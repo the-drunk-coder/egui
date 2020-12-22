@@ -125,7 +125,7 @@ impl Interaction {
     fn begin_frame(
         &mut self,
         prev_input: &crate::input::InputState,
-        new_input: &crate::input::RawInput,
+	_: &crate::input::RawInput,
     ) {
         self.kb_focus_id_previous_frame = self.kb_focus_id;
         self.click_interest = false;
@@ -141,6 +141,7 @@ impl Interaction {
             self.drag_id = None;
         }
 
+	/*
         self.pressed_tab = false;
         self.pressed_shift_tab = false;
         for event in &new_input.events {
@@ -156,7 +157,7 @@ impl Interaction {
                     self.pressed_tab = true;
                 }
             }
-        }
+        }*/
     }
 }
 

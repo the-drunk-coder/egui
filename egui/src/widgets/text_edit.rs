@@ -742,7 +742,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         ..
                     } => {
-			println!("tab");
+			//println!("tab");
 			let mut ccursor = delete_selected(text, &cursorp);
                         insert_text(&mut ccursor, text, "  ");
                         Some(CCursorPair::one(ccursor))
@@ -759,7 +759,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			None
 		    },
 		    Event::Key {
-                        key: Key::LParen,
+                        key: Key::LParen, // electric parenthesis for s-expression languages ...
                         pressed: true,
                         ..
                     } => {
@@ -806,7 +806,10 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         ..
                     } => {
-                        ui.memory().surrender_kb_focus(id);
+			// clear selection
+			selection_toggle.store(false, Ordering::SeqCst);
+			cursorp.secondary = cursorp.primary;
+                        //ui.memory().surrender_kb_focus(id);			
                         break;
                     }
 
