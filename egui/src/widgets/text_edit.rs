@@ -590,7 +590,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             desired_width,
             desired_height_rows,
 	    eval_callback,
-	    mut selection_toggle
+	    selection_toggle
         } = self;
 
         let text_style = text_style.unwrap_or_else(|| ui.style().body_text_style);
@@ -753,7 +753,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			if modifiers.command {
-			    let mut sel = selection_toggle.load(Ordering::SeqCst);			   			    
+			    let sel = selection_toggle.load(Ordering::SeqCst);			   			    
 			    selection_toggle.store(!sel, Ordering::SeqCst);			    
 			}
 			None
