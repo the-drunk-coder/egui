@@ -16,7 +16,7 @@ fn set(value_function: &mut GetSetValue<'_>, value: f64) {
     (value_function)(Some(value));
 }
 
-/// A floating point value that you can change by dragging the number. More compact than a slider.
+/// A numeric value that you can change by dragging the number. More compact than a [`Slider`].
 pub struct DragValue<'a> {
     value_function: GetSetValue<'a>,
     speed: f32,
@@ -151,7 +151,7 @@ impl<'a> Widget for DragValue<'a> {
         let auto_decimals = clamp(auto_decimals, min_decimals..=max_decimals);
         let value_text = format_with_decimals_in_range(value, auto_decimals..=max_decimals);
 
-        let kb_edit_id = ui.make_position_id().with("edit");
+        let kb_edit_id = ui.auto_id_with("edit");
         let is_kb_editing = ui.memory().has_kb_focus(kb_edit_id);
 
         if is_kb_editing {
@@ -179,7 +179,7 @@ impl<'a> Widget for DragValue<'a> {
                 .text_style(TextStyle::Monospace);
             let response = ui.add(button);
             let response = response.on_hover_text(format!(
-                " {}{}{}\nDrag to edit or click to enter a value.",
+                "{}{}{}\nDrag to edit or click to enter a value.",
                 prefix,
                 value as f32, // Show full precision value on-hover. TODO: figure out f64 vs f32
                 suffix

@@ -31,22 +31,25 @@ impl egui::app::TextureAllocator for Painter {
 
 struct RequestRepaintEvent;
 
-struct GliumRepaintSignal(glutin::event_loop::EventLoopProxy<RequestRepaintEvent>);
+struct GliumRepaintSignal(
+    std::sync::Mutex<glutin::event_loop::EventLoopProxy<RequestRepaintEvent>>,
+);
 
 impl egui::app::RepaintSignal for GliumRepaintSignal {
     fn request_repaint(&self) {
-        self.0.send_event(RequestRepaintEvent).ok();
+        self.0.lock().unwrap().send_event(RequestRepaintEvent).ok();
     }
 }
 
 fn create_display(
     title: &str,
     window_settings: Option<WindowSettings>,
+    is_resizable: bool,
     event_loop: &glutin::event_loop::EventLoop<RequestRepaintEvent>,
 ) -> glium::Display {
     let mut window_builder = glutin::window::WindowBuilder::new()
         .with_decorations(true)
-        .with_resizable(true)
+        .with_resizable(is_resizable)
         .with_title(title)
         .with_transparent(false);
 
@@ -102,9 +105,11 @@ pub fn run(mut app: Box<dyn App>) -> ! {
         .as_mut()
         .and_then(|storage| egui::app::get_value(storage.as_ref(), WINDOW_KEY));
     let event_loop = glutin::event_loop::EventLoop::with_user_event();
-    let display = create_display(app.name(), window_settings, &event_loop);
+    let display = create_display(app.name(), window_settings, app.is_resizable(), &event_loop);
 
-    let repaint_signal = std::sync::Arc::new(GliumRepaintSignal(event_loop.create_proxy()));
+    let repaint_signal = std::sync::Arc::new(GliumRepaintSignal(std::sync::Mutex::new(
+        event_loop.create_proxy(),
+    )));
 
     let mut ctx = egui::CtxRef::default();
     *ctx.memory() = storage

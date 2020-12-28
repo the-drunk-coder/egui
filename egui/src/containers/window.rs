@@ -12,19 +12,27 @@ use super::*;
 /// * if the window has a scroll area (off by default)
 /// * if the window can be collapsed (minimized) to just the title bar (yes, by default)
 /// * if there should be a close button (none by default)
+///
+/// ```
+/// # let mut ctx = egui::CtxRef::default();
+/// # ctx.begin_frame(Default::default());
+/// # let ctx = &ctx;
+/// egui::Window::new("My Window").show(ctx, |ui| {
+///    ui.label("Hello World!");
+/// });
 pub struct Window<'open> {
-    pub title_label: Label,
+    title_label: Label,
     open: Option<&'open mut bool>,
-    pub area: Area,
-    pub frame: Option<Frame>,
-    pub resize: Resize,
-    pub scroll: Option<ScrollArea>,
-    pub collapsible: bool,
-    pub with_title_bar: bool,
+    area: Area,
+    frame: Option<Frame>,
+    resize: Resize,
+    scroll: Option<ScrollArea>,
+    collapsible: bool,
+    with_title_bar: bool,
 }
 
 impl<'open> Window<'open> {
-    /// The window title is used as a unique Id and must be unique, and should not change.
+    /// The window title is used as a unique [`Id`] and must be unique, and should not change.
     /// This is true even if you disable the title bar with `.title_bar(false)`.
     pub fn new(title: impl Into<String>) -> Self {
         let title = title.into();
@@ -225,6 +233,8 @@ impl<'open> Window<'open> {
 
         let mut area = area.begin(ctx);
 
+        let title_content_spacing = 2.0 * ctx.style().spacing.item_spacing.y;
+
         // First interact (move etc) to avoid frame delay:
         let last_frame_outer_rect = area.state().rect();
         let interaction = if possible.movable || possible.resizable {
@@ -238,8 +248,7 @@ impl<'open> Window<'open> {
             .and_then(|window_interaction| {
                 // Calculate roughly how much larger the window size is compared to the inner rect
                 let title_bar_height = if with_title_bar {
-                    title_label.font_height(ctx.fonts(), &ctx.style())
-                        + 1.0 * ctx.style().spacing.item_spacing.y // this could be better
+                    title_label.font_height(ctx.fonts(), &ctx.style()) + title_content_spacing
                 } else {
                     0.0
                 };
@@ -292,8 +301,7 @@ impl<'open> Window<'open> {
                 .add_contents(&mut frame.content_ui, collapsing_id, |ui| {
                     resize.show(ui, |ui| {
                         if title_bar.is_some() {
-                            // Add some spacing between title and content:
-                            ui.allocate_space(ui.style().spacing.item_spacing);
+                            ui.advance_cursor(title_content_spacing);
                         }
 
                         if let Some(scroll) = scroll {
@@ -614,6 +622,7 @@ fn paint_frame_interaction(
 // ----------------------------------------------------------------------------
 
 struct TitleBar {
+    id: Id,
     title_label: Label,
     title_galley: Galley,
     title_rect: Rect,
@@ -637,7 +646,7 @@ fn show_title_bar(
         if collapsible {
             ui.advance_cursor(ui.style().spacing.item_spacing.x);
 
-            let rect = ui.allocate_space(Vec2::splat(button_size));
+            let (_id, rect) = ui.allocate_space(Vec2::splat(button_size));
             let collapse_button_response = ui.interact(rect, collapsing_id, Sense::click());
             if collapse_button_response.clicked {
                 collapsing.toggle(ui);
@@ -647,7 +656,7 @@ fn show_title_bar(
         }
 
         let title_galley = title_label.layout(ui);
-        let title_rect = ui.allocate_space(title_galley.size);
+        let (id, title_rect) = ui.allocate_space(title_galley.size);
 
         if show_close_button {
             // Reserve space for close button which will be added later (once we know our full width):
@@ -664,6 +673,7 @@ fn show_title_bar(
         }
 
         TitleBar {
+            id,
             title_label,
             title_galley,
             title_rect,
@@ -715,9 +725,8 @@ impl TitleBar {
             );
         }
 
-        let title_bar_id = ui.make_position_id().with("title_bar");
         if ui
-            .interact(self.rect, title_bar_id, Sense::click())
+            .interact(self.rect, self.id, Sense::click())
             .double_clicked
             && collapsible
         {
@@ -740,7 +749,7 @@ impl TitleBar {
 }
 
 fn close_button(ui: &mut Ui, rect: Rect) -> Response {
-    let close_id = ui.make_position_id().with("window_close_button");
+    let close_id = ui.auto_id_with("window_close_button");
     let response = ui.interact(rect, close_id, Sense::click());
     ui.expand_to_include_rect(response.rect);
 

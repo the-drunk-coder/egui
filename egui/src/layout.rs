@@ -2,8 +2,8 @@ use crate::{math::*, Align};
 
 // ----------------------------------------------------------------------------
 
-/// This describes the bounds and existing contents of an `Ui`.
-/// It is what is used and updated by `Layout` when adding new widgets.
+/// This describes the bounds and existing contents of an [`Ui`][`crate::Ui`].
+/// It is what is used and updated by [`Layout`] when adding new widgets.
 #[derive(Clone, Copy, Debug)]
 pub struct Region {
     /// This is the minimal size of the `Ui`.
@@ -64,7 +64,7 @@ impl Region {
 
 // ----------------------------------------------------------------------------
 
-/// Main layout direction
+/// Layout direction, one of `LeftToRight`, `RightToLeft`, `TopDown`, `BottomUp`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
@@ -93,7 +93,7 @@ impl Direction {
 
 // ----------------------------------------------------------------------------
 
-/// The layout of a `Ui`, e.g. horizontal left-aligned.
+/// The layout of a [`Ui`][`crate::Ui`], e.g. "vertical & centered".
 #[derive(Clone, Copy, Debug, PartialEq)]
 // #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Layout {
@@ -506,21 +506,23 @@ impl Layout {
 
         let align;
 
+        let l = 64.0;
+
         match self.main_dir {
             Direction::LeftToRight => {
-                painter.debug_arrow(cursor, vec2(1.0, 0.0), stroke);
+                painter.arrow(cursor, vec2(l, 0.0), stroke);
                 align = (Align::Min, Align::Min);
             }
             Direction::RightToLeft => {
-                painter.debug_arrow(cursor, vec2(-1.0, 0.0), stroke);
+                painter.arrow(cursor, vec2(-l, 0.0), stroke);
                 align = (Align::Max, Align::Min);
             }
             Direction::TopDown => {
-                painter.debug_arrow(cursor, vec2(0.0, 1.0), stroke);
+                painter.arrow(cursor, vec2(0.0, l), stroke);
                 align = (Align::Min, Align::Min);
             }
             Direction::BottomUp => {
-                painter.debug_arrow(cursor, vec2(0.0, -1.0), stroke);
+                painter.arrow(cursor, vec2(0.0, -l), stroke);
                 align = (Align::Min, Align::Max);
             }
         }

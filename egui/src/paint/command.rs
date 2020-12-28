@@ -7,7 +7,7 @@ use {
     },
 };
 
-// TODO: rename, e.g. `paint::Cmd`?
+/// A paint primitive such as a circle or a piece of text.
 #[derive(Clone, Debug)]
 pub enum PaintCmd {
     /// Paint nothing. This can be useful as a placeholder.
@@ -32,6 +32,7 @@ pub enum PaintCmd {
     },
     Rect {
         rect: Rect,
+        /// How rounded the corners are. Use `0.0` for no rounding.
         corner_radius: f32,
         fill: Srgba,
         stroke: Stroke,
@@ -184,6 +185,7 @@ impl PaintCmd {
     }
 }
 
+/// Describes the width and color of a line.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Stroke {
