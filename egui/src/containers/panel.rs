@@ -8,7 +8,16 @@ use crate::*;
 
 /// A panel that covers the entire left side of the screen.
 ///
-/// Panels should be added before adding any `Window`s.
+/// `SidePanel`s should be added before adding any [`Window`]s.
+///
+/// ```
+/// # let mut ctx = egui::CtxRef::default();
+/// # ctx.begin_frame(Default::default());
+/// # let ctx = &ctx;
+/// egui::SidePanel::left("my_side_panel", 0.0).show(ctx, |ui| {
+///    ui.label("Hello World!");
+/// });
+/// ```
 pub struct SidePanel {
     id: Id,
     max_width: f32,
@@ -44,7 +53,7 @@ impl SidePanel {
         });
 
         let panel_rect = panel_ui.min_rect();
-        let response = panel_ui.interact_hover(panel_rect);
+        let response = panel_ui.interact(panel_rect, id, Sense::hover());
 
         ctx.frame_state().allocate_left_panel(panel_rect);
 
@@ -56,7 +65,16 @@ impl SidePanel {
 
 /// A panel that covers the entire top side of the screen.
 ///
-/// Panels should be added before adding any `Window`s.
+/// `TopPanel`s should be added before adding any [`Window`]s.
+///
+/// ```
+/// # let mut ctx = egui::CtxRef::default();
+/// # ctx.begin_frame(Default::default());
+/// # let ctx = &ctx;
+/// egui::TopPanel::top("my_top_panel").show(ctx, |ui| {
+///    ui.label("Hello World!");
+/// });
+/// ```
 pub struct TopPanel {
     id: Id,
     max_height: Option<f32>,
@@ -94,7 +112,7 @@ impl TopPanel {
         });
 
         let panel_rect = panel_ui.min_rect();
-        let response = panel_ui.interact_hover(panel_rect);
+        let response = panel_ui.interact(panel_rect, id, Sense::hover());
 
         ctx.frame_state().allocate_top_panel(panel_rect);
 
@@ -108,7 +126,16 @@ impl TopPanel {
 /// i.e. whatever area is left after adding other panels.
 ///
 /// `CentralPanel` should be added after all other panels.
-/// Any `Window`s and `Area`s will cover the `CentralPanel`.
+/// Any [`Window`]s and [`Area`]s will cover the `CentralPanel`.
+///
+/// ```
+/// # let mut ctx = egui::CtxRef::default();
+/// # ctx.begin_frame(Default::default());
+/// # let ctx = &ctx;
+/// egui::CentralPanel::default().show(ctx, |ui| {
+///    ui.label("Hello World!");
+/// });
+/// ```
 #[derive(Default)]
 pub struct CentralPanel {}
 
@@ -132,7 +159,8 @@ impl CentralPanel {
         });
 
         let panel_rect = panel_ui.min_rect();
-        let response = panel_ui.interact_hover(panel_rect);
+        let id = Id::new("central_panel");
+        let response = panel_ui.interact(panel_rect, id, Sense::hover());
 
         ctx.frame_state().allocate_central_panel(panel_rect);
 

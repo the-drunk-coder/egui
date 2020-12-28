@@ -101,7 +101,7 @@ impl State {
 }
 
 /// Paint the arrow icon that indicated if the region is open or not
-pub fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
+pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     let stroke = ui.style().interact(response).fg_stroke;
 
     let rect = response.rect;
@@ -109,17 +109,16 @@ pub fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     // Draw a pointy triangle arrow:
     let rect = Rect::from_center_size(rect.center(), vec2(rect.width(), rect.height()) * 0.75);
     let mut points = vec![rect.left_top(), rect.right_top(), rect.center_bottom()];
-    let rotation = Vec2::angled(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
+    use std::f32::consts::TAU;
+    let rotation = Rot2::from_angle(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
     for p in &mut points {
-        let v = *p - rect.center();
-        let v = rotation.rotate_other(v);
-        *p = rect.center() + v;
+        *p = rect.center() + rotation * (*p - rect.center());
     }
 
     ui.painter().add(PaintCmd::closed_line(points, stroke));
 }
 
-/// A header which can be collapsed/expanded, revealing a contained `Ui` region.
+/// A header which can be collapsed/expanded, revealing a contained [`Ui`] region.
 pub struct CollapsingHeader {
     label: Label,
     default_open: bool,
@@ -187,7 +186,7 @@ impl CollapsingHeader {
             galley.size.y + 2.0 * ui.style().spacing.button_padding.y,
         );
         desired_size = desired_size.at_least(ui.style().spacing.interact_size);
-        let rect = ui.allocate_space(desired_size);
+        let (_, rect) = ui.allocate_space(desired_size);
 
         let header_response = ui.interact(rect, id, Sense::click());
         let text_pos = pos2(
@@ -270,6 +269,7 @@ impl CollapsingHeader {
     }
 }
 
+/// The response from showing a [`CollapsingHeader`].
 pub struct CollapsingResponse<R> {
     pub header_response: Response,
     /// None iff collapsed.

@@ -31,7 +31,7 @@ impl View for DancingStrings {
             let time = ui.input().time;
 
             let desired_size = ui.available_width() * vec2(1.0, 0.35);
-            let rect = ui.allocate_space(desired_size);
+            let (_id, rect) = ui.allocate_space(desired_size);
 
             let mut cmds = vec![];
 
@@ -44,7 +44,7 @@ impl View for DancingStrings {
                     .map(|i| {
                         let t = i as f32 / (n as f32);
                         let amp = (time as f32 * speed * mode).sin() / mode;
-                        let y = amp * (t * math::TAU / 2.0 * mode).sin();
+                        let y = amp * (t * std::f32::consts::TAU / 2.0 * mode).sin();
 
                         pos2(
                             lerp(rect.x_range(), t),

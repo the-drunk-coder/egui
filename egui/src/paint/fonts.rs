@@ -12,14 +12,20 @@ use super::{
 };
 
 // TODO: rename
+/// One of a few categories of styles of text, e.g. body, button or heading.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum TextStyle {
+    /// Used when small text is needed.
     Small,
+    /// Normal labels. Easily readable, doesn't take up too much space.
     Body,
+    /// Buttons. Maybe slightly bigger than `Body`.
     Button,
+    /// Heading. Probably larger than `Body`.
     Heading,
+    /// Same size as `Body`, but used when monospace is important (for aligning number, code snippets, etc).
     Monospace,
 }
 
@@ -37,11 +43,14 @@ impl TextStyle {
     }
 }
 
+/// Which style of font: [`Monospace`][`FontFamily::Monospace`] or [`Proportional`][`FontFamily::Proportional`].
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 // #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum FontFamily {
+    /// A font where each character is the same width (`w` is the same width as `i`).
     Monospace,
-    VariableWidth,
+    /// A font where some characters are wider than other (e.g. 'w' is wider than 'i').
+    Proportional,
 }
 
 /// The data of a `.ttf` or `.otf` file.
@@ -55,12 +64,23 @@ fn rusttype_font_from_font_data(name: &str, data: &FontData) -> rusttype::Font<'
     .unwrap_or_else(|| panic!("Error parsing {:?} TTF/OTF font file", name))
 }
 
-/// This is how you tell Egui which fonts and font sizes to use.
+/// Describes the font data and the sizes to use.
+///
+/// This is how you can tell Egui which fonts and font sizes to use.
+///
+/// Often you would start with [`FontDefinitions::default()`] and then add/change the contents.
+///
+/// ```
+/// # let mut ctx = egui::CtxRef::default();
+/// let mut fonts = egui::FontDefinitions::default();
+/// // Large button text:
+/// fonts.family_and_size.insert(
+///     egui::TextStyle::Button,
+///     (egui::FontFamily::Proportional, 32.0));
+/// ctx.set_fonts(fonts);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct FontDefinitions {
-    /// The dpi scale factor. Needed to get pixel perfect fonts.
-    pub pixels_per_point: f32,
-
     /// List of font names and their definitions.
     /// The definition must be the contents of either a `.ttf` or `.otf` font file.
     ///
@@ -68,79 +88,83 @@ pub struct FontDefinitions {
     /// but you can override them if you like.
     pub font_data: BTreeMap<String, FontData>,
 
-    /// Which fonts (names) to use for each `FontFamily`.
+    /// Which fonts (names) to use for each [`FontFamily`].
     ///
-    /// The list should be a list of keys into `font_data`.
+    /// The list should be a list of keys into [`Self::font_data`].
     /// When looking for a character glyph Egui will start with
     /// the first font and then move to the second, and so on.
     /// So the first font is the primary, and then comes a list of fallbacks in order of priority.
     pub fonts_for_family: BTreeMap<FontFamily, Vec<String>>,
 
-    /// The `FontFaily` and size you want to use for a specific `TextStyle`.
+    /// The [`FontFamily`] and size you want to use for a specific [`TextStyle`].
     pub family_and_size: BTreeMap<TextStyle, (FontFamily, f32)>,
 }
 
 impl Default for FontDefinitions {
     fn default() -> Self {
-        Self::default_with_pixels_per_point(f32::NAN) // must be set later
-    }
-}
-
-impl FontDefinitions {
-    /// Default values for the fonts
-    pub fn default_with_pixels_per_point(pixels_per_point: f32) -> Self {
+        #[allow(unused)]
         let mut font_data: BTreeMap<String, FontData> = BTreeMap::new();
-        // Use size 13 for this. NOTHING ELSE:
-        font_data.insert(
-            "ProggyClean".to_owned(),
-            std::borrow::Cow::Borrowed(include_bytes!("../../fonts/ProggyClean.ttf")),
-        );
-        font_data.insert(
-            "Ubuntu-Light".to_owned(),
-            std::borrow::Cow::Borrowed(include_bytes!("../../fonts/Ubuntu-Light.ttf")),
-        );
-
-        // Few, but good looking. Use as first priority:
-        font_data.insert(
-            "NotoEmoji-Regular".to_owned(),
-            std::borrow::Cow::Borrowed(include_bytes!("../../fonts/NotoEmoji-Regular.ttf")),
-        );
-        // Bigger emojis, and more. <http://jslegers.github.io/emoji-icon-font/>:
-        font_data.insert(
-            "emoji-icon-font".to_owned(),
-            std::borrow::Cow::Borrowed(include_bytes!("../../fonts/emoji-icon-font.ttf")),
-        );
-
-        // TODO: figure out a way to make the WASM smaller despite including fonts. Zip them?
 
         let mut fonts_for_family = BTreeMap::new();
-        fonts_for_family.insert(
-            FontFamily::Monospace,
-            vec![
+
+        #[cfg(feature = "default_fonts")]
+        {
+            // TODO: figure out a way to make the WASM smaller despite including fonts. Zip them?
+
+            // Use size 13 for this. NOTHING ELSE:
+            font_data.insert(
                 "ProggyClean".to_owned(),
-                "Ubuntu-Light".to_owned(), // fallback for √ etc
-                "NotoEmoji-Regular".to_owned(),
-                "emoji-icon-font".to_owned(),
-            ],
-        );
-        fonts_for_family.insert(
-            FontFamily::VariableWidth,
-            vec![
+                std::borrow::Cow::Borrowed(include_bytes!("../../fonts/ProggyClean.ttf")),
+            );
+            font_data.insert(
                 "Ubuntu-Light".to_owned(),
+                std::borrow::Cow::Borrowed(include_bytes!("../../fonts/Ubuntu-Light.ttf")),
+            );
+
+            // Some good looking emojis. Use as first priority:
+            font_data.insert(
                 "NotoEmoji-Regular".to_owned(),
+                std::borrow::Cow::Borrowed(include_bytes!("../../fonts/NotoEmoji-Regular.ttf")),
+            );
+            // Bigger emojis, and more. <http://jslegers.github.io/emoji-icon-font/>:
+            font_data.insert(
                 "emoji-icon-font".to_owned(),
-            ],
-        );
+                std::borrow::Cow::Borrowed(include_bytes!("../../fonts/emoji-icon-font.ttf")),
+            );
+
+            fonts_for_family.insert(
+                FontFamily::Monospace,
+                vec![
+                    "ProggyClean".to_owned(),
+                    "Ubuntu-Light".to_owned(), // fallback for √ etc
+                    "NotoEmoji-Regular".to_owned(),
+                    "emoji-icon-font".to_owned(),
+                ],
+            );
+            fonts_for_family.insert(
+                FontFamily::Proportional,
+                vec![
+                    "Ubuntu-Light".to_owned(),
+                    "NotoEmoji-Regular".to_owned(),
+                    "emoji-icon-font".to_owned(),
+                ],
+            );
+        }
+
+        #[cfg(not(feature = "default_fonts"))]
+        {
+            fonts_for_family.insert(FontFamily::Monospace, vec![]);
+            fonts_for_family.insert(FontFamily::Proportional, vec![]);
+        }
 
         let mut family_and_size = BTreeMap::new();
-        family_and_size.insert(TextStyle::Small, (FontFamily::VariableWidth, 10.0));
-        family_and_size.insert(TextStyle::Body, (FontFamily::VariableWidth, 14.0));
-        family_and_size.insert(TextStyle::Button, (FontFamily::VariableWidth, 16.0));
-        family_and_size.insert(TextStyle::Heading, (FontFamily::VariableWidth, 20.0));
+        family_and_size.insert(TextStyle::Small, (FontFamily::Proportional, 10.0));
+        family_and_size.insert(TextStyle::Body, (FontFamily::Proportional, 14.0));
+        family_and_size.insert(TextStyle::Button, (FontFamily::Proportional, 16.0));
+        family_and_size.insert(TextStyle::Heading, (FontFamily::Proportional, 20.0));
         family_and_size.insert(TextStyle::Monospace, (FontFamily::Monospace, 13.0)); // 13 for `ProggyClean`
 
         Self {
-            pixels_per_point,
             font_data,
             fonts_for_family,
             family_and_size,
@@ -148,9 +172,12 @@ impl FontDefinitions {
     }
 }
 
-/// Note: the `default()` fonts are invalid (missing `pixels_per_point`).
+/// The collection of fonts used by Egui.
+///
+/// Note: `Fonts::default()` is invalid (missing `pixels_per_point`).
 #[derive(Default)]
 pub struct Fonts {
+    pixels_per_point: f32,
     definitions: FontDefinitions,
     fonts: BTreeMap<TextStyle, Font>,
     atlas: Arc<Mutex<TextureAtlas>>,
@@ -160,22 +187,7 @@ pub struct Fonts {
 }
 
 impl Fonts {
-    pub fn from_definitions(definitions: FontDefinitions) -> Fonts {
-        let mut fonts = Self::default();
-        fonts.set_definitions(definitions);
-        fonts
-    }
-
-    pub fn definitions(&self) -> &FontDefinitions {
-        &self.definitions
-    }
-
-    pub fn set_definitions(&mut self, definitions: FontDefinitions) {
-        if self.definitions == definitions {
-            return;
-        }
-        self.definitions = definitions;
-
+    pub fn from_definitions(pixels_per_point: f32, definitions: FontDefinitions) -> Self {
         // We want an atlas big enough to be able to include all the Emojis in the `TextStyle::Heading`,
         // so we can show the Emoji picker demo window.
         let mut atlas = TextureAtlas::new(2048, 64);
@@ -189,14 +201,17 @@ impl Fonts {
 
         let atlas = Arc::new(Mutex::new(atlas));
 
-        let mut font_impl_cache = FontImplCache::new(atlas.clone(), &self.definitions);
+        let mut font_impl_cache = FontImplCache::new(atlas.clone(), pixels_per_point, &definitions);
 
-        self.fonts = self
-            .definitions
+        let fonts = definitions
             .family_and_size
             .iter()
             .map(|(&text_style, &(family, scale_in_points))| {
-                let fonts: Vec<Arc<FontImpl>> = self.definitions.fonts_for_family[&family]
+                let fonts = &definitions.fonts_for_family.get(&family);
+                let fonts = fonts.unwrap_or_else(|| {
+                    panic!("FontFamily::{:?} is not bound to any fonts", family)
+                });
+                let fonts: Vec<Arc<FontImpl>> = fonts
                     .iter()
                     .map(|font_name| font_impl_cache.font_impl(font_name, scale_in_points))
                     .collect();
@@ -215,10 +230,24 @@ impl Fonts {
             texture.version = hasher.finish();
         }
 
-        self.buffered_texture = Default::default(); //atlas.lock().texture().clone();
-        self.atlas = atlas;
+        Self {
+            pixels_per_point,
+            definitions,
+            fonts,
+            atlas,
+            buffered_texture: Default::default(), //atlas.lock().texture().clone();
+        }
     }
 
+    pub fn pixels_per_point(&self) -> f32 {
+        self.pixels_per_point
+    }
+
+    pub fn definitions(&self) -> &FontDefinitions {
+        &self.definitions
+    }
+
+    /// Call each frame to get the latest available font texture data.
     pub fn texture(&self) -> Arc<Texture> {
         let atlas = self.atlas.lock();
         let mut buffered_texture = self.buffered_texture.lock();
@@ -240,14 +269,7 @@ impl std::ops::Index<TextStyle> for Fonts {
 
 // ----------------------------------------------------------------------------
 
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum FontSource {
-    Family(FontFamily),
-    /// Emoji fonts are numbered from hight priority (0) and onwards
-    Emoji(usize),
-}
-
-pub struct FontImplCache {
+struct FontImplCache {
     atlas: Arc<Mutex<TextureAtlas>>,
     pixels_per_point: f32,
     rusttype_fonts: std::collections::BTreeMap<String, Arc<rusttype::Font<'static>>>,
@@ -258,7 +280,11 @@ pub struct FontImplCache {
 }
 
 impl FontImplCache {
-    pub fn new(atlas: Arc<Mutex<TextureAtlas>>, definitions: &super::FontDefinitions) -> Self {
+    pub fn new(
+        atlas: Arc<Mutex<TextureAtlas>>,
+        pixels_per_point: f32,
+        definitions: &super::FontDefinitions,
+    ) -> Self {
         let rusttype_fonts = definitions
             .font_data
             .iter()
@@ -272,7 +298,7 @@ impl FontImplCache {
 
         Self {
             atlas,
-            pixels_per_point: definitions.pixels_per_point,
+            pixels_per_point,
             rusttype_fonts,
             cache: Default::default(),
         }

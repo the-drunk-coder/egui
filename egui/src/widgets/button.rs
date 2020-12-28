@@ -1,5 +1,6 @@
 use crate::*;
 
+/// A clickable image within a frame.
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 #[derive(Clone, Debug)]
 pub struct ImageButton {
@@ -62,11 +63,9 @@ impl Widget for ImageButton {
 
         let button_padding = ui.style().spacing.button_padding;
         let desired_size = image.desired_size() + 2.0 * button_padding;
-        let rect = ui.allocate_space(desired_size);
-        let id = ui.make_position_id();
-        let response = ui.interact(rect, id, sense);
+        let response = ui.allocate_response(desired_size, sense);
 
-        if ui.clip_rect().intersects(rect) {
+        if ui.clip_rect().intersects(response.rect) {
             let visuals = ui.style().interact(&response);
 
             if selected {

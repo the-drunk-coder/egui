@@ -1,5 +1,6 @@
 use crate::*;
 
+/// An widget to show an image of a given size.
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 #[derive(Clone, Copy, Debug)]
 pub struct Image {
@@ -72,8 +73,8 @@ impl Image {
 
 impl Widget for Image {
     fn ui(self, ui: &mut Ui) -> Response {
-        let rect = ui.allocate_space(self.desired_size);
-        self.paint_at(ui, rect);
-        ui.interact_hover(rect)
+        let response = ui.allocate_response(self.desired_size, Sense::hover());
+        self.paint_at(ui, response.rect);
+        response
     }
 }

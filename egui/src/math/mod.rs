@@ -1,4 +1,8 @@
 //! Vectors, positions, rectangles etc.
+//!
+//! Conventions (unless otherwise specified):
+//! * All angles are in radians
+//! * All metrics are in points (logical pixels)
 
 use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
@@ -6,13 +10,15 @@ use std::ops::{Add, Div, Mul, RangeInclusive, Sub};
 
 mod pos2;
 mod rect;
+mod rot2;
 pub mod smart_aim;
 mod vec2;
 
-pub use {pos2::*, rect::*, vec2::*};
+pub use {pos2::*, rect::*, rot2::*, vec2::*};
 
 // ----------------------------------------------------------------------------
 
+/// Helper trait to implement [`lerp`] and [`remap`].
 pub trait One {
     fn one() -> Self;
 }
@@ -27,6 +33,7 @@ impl One for f64 {
     }
 }
 
+/// Helper trait to implement [`lerp`] and [`remap`].
 pub trait Real:
     Copy
     + PartialEq
@@ -108,18 +115,6 @@ where
     }
 }
 
-/// For t=[0,1], returns [0,1] with a derivate of zero at both ends
-pub fn ease_in_ease_out(t: f32) -> f32 {
-    3.0 * t * t - 2.0 * t * t * t
-}
-
-/// The circumference of a circle divided by its radius.
-///
-/// Represents one turn in radian angles. Equal to `2 * pi`.
-///
-/// See <https://tauday.com/>
-pub const TAU: f32 = 2.0 * std::f32::consts::PI;
-
 /// Round a value to the given number of decimal places.
 pub fn round_to_decimals(value: f64, decimal_places: usize) -> f64 {
     // This is a stupid way of doing this, but stupid works.
@@ -128,11 +123,14 @@ pub fn round_to_decimals(value: f64, decimal_places: usize) -> f64 {
         .unwrap_or(value)
 }
 
-pub fn format_with_minimum_decimals(value: f64, decimals: usize) -> String {
+pub(crate) fn format_with_minimum_decimals(value: f64, decimals: usize) -> String {
     format_with_decimals_in_range(value, decimals..=6)
 }
 
-pub fn format_with_decimals_in_range(value: f64, decimal_range: RangeInclusive<usize>) -> String {
+pub(crate) fn format_with_decimals_in_range(
+    value: f64,
+    decimal_range: RangeInclusive<usize>,
+) -> String {
     let min_decimals = *decimal_range.start();
     let max_decimals = *decimal_range.end();
     debug_assert!(min_decimals <= max_decimals);
@@ -159,7 +157,8 @@ pub fn format_with_decimals_in_range(value: f64, decimal_range: RangeInclusive<u
     }
 }
 
-/// Should return true when arguments are the same within some rounding error.
+/// Return true when arguments are the same within some rounding error.
+///
 /// For instance `almost_equal(x, x.to_degrees().to_radians(), f32::EPSILON)` should hold true for all x.
 /// The `epsilon`  can be `f32::EPSILON` to handle simple transforms (like degrees -> radians)
 /// but should be higher to handle more complex transformations.
@@ -231,6 +230,7 @@ fn test_remap() {
 
 // ----------------------------------------------------------------------------
 
+/// Extends `f32`, `Vec2` etc with `at_least` and `at_most` as aliases for `max` and `min`.
 pub trait NumExt {
     /// More readable version of `self.max(lower_limit)`
     fn at_least(self, lower_limit: Self) -> Self;
@@ -239,62 +239,21 @@ pub trait NumExt {
     fn at_most(self, upper_limit: Self) -> Self;
 }
 
-impl NumExt for f32 {
-    /// More readable version of `self.max(lower_limit)`
-    fn at_least(self, lower_limit: Self) -> Self {
-        self.max(lower_limit)
-    }
-
-    /// More readable version of `self.min(upper_limit)`
-    fn at_most(self, upper_limit: Self) -> Self {
-        self.min(upper_limit)
-    }
+macro_rules! impl_num_ext {
+    ($t: ty) => {
+        impl NumExt for $t {
+            fn at_least(self, lower_limit: Self) -> Self {
+                self.max(lower_limit)
+            }
+            fn at_most(self, upper_limit: Self) -> Self {
+                self.min(upper_limit)
+            }
+        }
+    };
 }
 
-impl NumExt for f64 {
-    /// More readable version of `self.max(lower_limit)`
-    fn at_least(self, lower_limit: Self) -> Self {
-        self.max(lower_limit)
-    }
-
-    /// More readable version of `self.min(upper_limit)`
-    fn at_most(self, upper_limit: Self) -> Self {
-        self.min(upper_limit)
-    }
-}
-
-impl NumExt for usize {
-    /// More readable version of `self.max(lower_limit)`
-    fn at_least(self, lower_limit: Self) -> Self {
-        self.max(lower_limit)
-    }
-
-    /// More readable version of `self.min(upper_limit)`
-    fn at_most(self, upper_limit: Self) -> Self {
-        self.min(upper_limit)
-    }
-}
-
-impl NumExt for Vec2 {
-    /// More readable version of `self.max(lower_limit)`
-    fn at_least(self, lower_limit: Self) -> Self {
-        self.max(lower_limit)
-    }
-
-    /// More readable version of `self.min(upper_limit)`
-    fn at_most(self, upper_limit: Self) -> Self {
-        self.min(upper_limit)
-    }
-}
-
-impl NumExt for Pos2 {
-    /// More readable version of `self.max(lower_limit)`
-    fn at_least(self, lower_limit: Self) -> Self {
-        self.max(lower_limit)
-    }
-
-    /// More readable version of `self.min(upper_limit)`
-    fn at_most(self, upper_limit: Self) -> Self {
-        self.min(upper_limit)
-    }
-}
+impl_num_ext!(f32);
+impl_num_ext!(f64);
+impl_num_ext!(usize);
+impl_num_ext!(Vec2);
+impl_num_ext!(Pos2);

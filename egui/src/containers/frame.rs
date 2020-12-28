@@ -2,7 +2,7 @@
 
 use crate::{layers::PaintCmdIdx, paint::*, *};
 
-/// Adds a rectangular frame and background to some `Ui`.
+/// Adds a rectangular frame and background to some [`Ui`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Frame {
     // On each side
@@ -148,7 +148,7 @@ impl Prepared {
             },
         );
 
-        ui.allocate_space(outer_rect.size());
+        ui.advance_cursor_after_rect(outer_rect);
 
         outer_rect
     }
