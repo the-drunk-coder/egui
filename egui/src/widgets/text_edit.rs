@@ -465,7 +465,7 @@ impl<'t> Widget for TextEdit<'t> {
 
         let text_color = text_color
             .or(ui.style().visuals.override_text_color)
-            // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
+            //.unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
             .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
         ui.painter()
             .galley(response.rect.min, galley, text_style, text_color);
@@ -713,19 +713,27 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         } else {
                             ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
                         }
+			// clear selection
+			selection_toggle.store(false, Ordering::SeqCst);
                         None
                     }
                     Event::Cut => {
-                        if cursorp.is_empty() {
+			// clear selection
+			selection_toggle.store(false, Ordering::SeqCst);
+			
+			if cursorp.is_empty() {
                             ui.ctx().output().copied_text = std::mem::take(text);
                             Some(CCursorPair::default())
                         } else {
                             ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
                             Some(CCursorPair::one(delete_selected(text, &cursorp)))
-                        }
+                        }			
                     }
                     Event::Text(text_to_insert) => {
-                        // Newlines are handled by `Key::Enter`.
+			// clear selection
+			selection_toggle.store(false, Ordering::SeqCst);
+			
+			// Newlines are handled by `Key::Enter`.
                         if !text_to_insert.is_empty()
                             && text_to_insert != "\n"
                             && text_to_insert != "\r"
@@ -735,7 +743,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                             Some(CCursorPair::one(ccursor))
                         } else {
                             None
-                        }
+                        }			
                     }
 		    Event::Key {
                         key: Key::Tab,
@@ -745,7 +753,9 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			//println!("tab");
 			let mut ccursor = delete_selected(text, &cursorp);
                         insert_text(&mut ccursor, text, "  ");
-                        Some(CCursorPair::one(ccursor))
+			// clear selection
+			selection_toggle.store(false, Ordering::SeqCst);
+			Some(CCursorPair::one(ccursor))			
 		    }
 		    Event::Key {
                         key: Key::Space,
@@ -780,6 +790,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
+			// clear selection
+			selection_toggle.store(false, Ordering::SeqCst);
 			if modifiers.command {			    
 			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
 				let cup = CursorPair {
@@ -799,7 +811,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                             let mut ccursor = delete_selected(text, &cursorp);
                             insert_text(&mut ccursor, text, "\n");
                             Some(CCursorPair::one(ccursor))
-                        } 
+                        }			
                     }
                     Event::Key {
                         key: Key::Escape,
@@ -947,7 +959,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             .or(ui.style().visuals.override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
             .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
-        ui.painter()
+
+	ui.painter()
             .galley(response.rect.min, galley, text_style, text_color);
 
         ui.memory().text_edit.insert(id, state);
