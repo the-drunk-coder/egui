@@ -30,7 +30,7 @@ serde_json = { version = "1", optional = true }
 criterion = { version = "0.3", default-features = false }
 
 [features]
-default = ["atomic_refcell", "default_fonts"]
+default = ["atomic_refcell", "default_fonts", "parking_lot"]
 
 # If set, egui will use `include_bytes!` to bundle some fonts.
 # If you plan on specifying your own fonts you may disable this feature.
