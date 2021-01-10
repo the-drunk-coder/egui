@@ -1,9 +1,6 @@
 use crate::*;
 
-pub use egui::{
-    app::{App, WebInfo},
-    pos2, Srgba,
-};
+pub use egui::{pos2, Color32};
 
 // ----------------------------------------------------------------------------
 
@@ -41,8 +38,8 @@ impl WebBackend {
             .take()
             .expect("unmatched calls to begin_frame/end_frame");
 
-        let (output, paint_commands) = self.ctx.end_frame();
-        let paint_jobs = self.ctx.tesselate(paint_commands);
+        let (output, shapes) = self.ctx.end_frame();
+        let paint_jobs = self.ctx.tessellate(shapes);
 
         let now = now_sec();
         self.previous_frame_time = Some((now - frame_start) as f32);
@@ -68,18 +65,15 @@ impl WebBackend {
     }
 }
 
-impl egui::app::TextureAllocator for webgl::Painter {
-    fn alloc(&mut self) -> egui::TextureId {
-        self.alloc_user_texture()
-    }
-
-    fn set_srgba_premultiplied(
+impl epi::TextureAllocator for webgl::Painter {
+    fn alloc_srgba_premultiplied(
         &mut self,
-        id: egui::TextureId,
         size: (usize, usize),
-        srgba_pixels: &[Srgba],
-    ) {
+        srgba_pixels: &[Color32],
+    ) -> egui::TextureId {
+        let id = self.alloc_user_texture();
         self.set_user_texture(id, size, srgba_pixels);
+        id
     }
 
     fn free(&mut self, id: egui::TextureId) {
@@ -131,7 +125,7 @@ impl NeedRepaint {
     }
 }
 
-impl egui::app::RepaintSignal for NeedRepaint {
+impl epi::RepaintSignal for NeedRepaint {
     fn request_repaint(&self) {
         self.0.store(true, SeqCst);
     }
@@ -140,16 +134,18 @@ impl egui::app::RepaintSignal for NeedRepaint {
 // ----------------------------------------------------------------------------
 
 pub struct AppRunner {
-    pub web_backend: WebBackend,
-    pub input: WebInput,
-    pub app: Box<dyn App>,
-    pub needs_repaint: std::sync::Arc<NeedRepaint>,
-    pub storage: LocalStorage,
-    pub last_save_time: f64,
+    web_backend: WebBackend,
+    pub(crate) input: WebInput,
+    app: Box<dyn epi::App>,
+    pub(crate) needs_repaint: std::sync::Arc<NeedRepaint>,
+    storage: LocalStorage,
+    last_save_time: f64,
+    #[cfg(feature = "http")]
+    http: Arc<http::WebHttp>,
 }
 
 impl AppRunner {
-    pub fn new(web_backend: WebBackend, mut app: Box<dyn App>) -> Result<Self, JsValue> {
+    pub fn new(web_backend: WebBackend, mut app: Box<dyn epi::App>) -> Result<Self, JsValue> {
         load_memory(&web_backend.ctx);
         let storage = LocalStorage::default();
         app.load(&storage);
@@ -161,6 +157,8 @@ impl AppRunner {
             needs_repaint: Default::default(),
             storage,
             last_save_time: now_sec(),
+            #[cfg(feature = "http")]
+            http: Arc::new(http::WebHttp {}),
         })
     }
 
@@ -179,15 +177,30 @@ impl AppRunner {
         self.web_backend.canvas_id()
     }
 
+    pub fn warm_up(&mut self) -> Result<(), JsValue> {
+        if self.app.warm_up_enabled() {
+            let saved_memory = self.web_backend.ctx.memory().clone();
+            self.web_backend
+                .ctx
+                .memory()
+                .set_everything_is_visible(true);
+            self.logic()?;
+            *self.web_backend.ctx.memory() = saved_memory; // We don't want to remember that windows were huge.
+            self.web_backend.ctx.clear_animations();
+        }
+        Ok(())
+    }
+
     pub fn logic(&mut self) -> Result<(egui::Output, egui::PaintJobs), JsValue> {
         resize_canvas_to_screen_size(self.web_backend.canvas_id());
         let canvas_size = canvas_size_in_points(self.web_backend.canvas_id());
         let raw_input = self.input.new_frame(canvas_size);
         self.web_backend.begin_frame(raw_input);
 
-        let mut integration_context = egui::app::IntegrationContext {
-            info: egui::app::IntegrationInfo {
-                web_info: Some(WebInfo {
+        let mut app_output = epi::backend::AppOutput::default();
+        let mut frame = epi::backend::FrameBuilder {
+            info: epi::IntegrationInfo {
+                web_info: Some(epi::WebInfo {
                     web_location_hash: location_hash().unwrap_or_default(),
                 }),
                 cpu_usage: self.web_backend.previous_frame_time,
@@ -195,18 +208,20 @@ impl AppRunner {
                 native_pixels_per_point: Some(native_pixels_per_point()),
             },
             tex_allocator: Some(&mut self.web_backend.painter),
-            output: Default::default(),
+            #[cfg(feature = "http")]
+            http: self.http.clone(),
+            output: &mut app_output,
             repaint_signal: self.needs_repaint.clone(),
-        };
+        }
+        .build();
 
         let egui_ctx = &self.web_backend.ctx;
-        self.app.ui(egui_ctx, &mut integration_context);
-        let app_output = integration_context.output;
+        self.app.update(egui_ctx, &mut frame);
         let (egui_output, paint_jobs) = self.web_backend.end_frame()?;
         handle_output(&egui_output);
 
         {
-            let egui::app::AppOutput {
+            let epi::backend::AppOutput {
                 quit: _,             // Can't quit a web page
                 window_size: _,      // Can't resize a web page
                 pixels_per_point: _, // Can't zoom from within the app (we respect the web browser's zoom level)
@@ -222,10 +237,11 @@ impl AppRunner {
 }
 
 /// Install event listeners to register different input events
-/// and starts running the given app.
-pub fn start(canvas_id: &str, app: Box<dyn App>) -> Result<AppRunnerRef, JsValue> {
+/// and start running the given app.
+pub fn start(canvas_id: &str, app: Box<dyn epi::App>) -> Result<AppRunnerRef, JsValue> {
     let backend = WebBackend::new(canvas_id)?;
-    let runner = AppRunner::new(backend, app)?;
+    let mut runner = AppRunner::new(backend, app)?;
+    runner.warm_up()?;
     start_runner(runner)
 }
 

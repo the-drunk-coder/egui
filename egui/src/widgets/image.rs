@@ -7,8 +7,8 @@ pub struct Image {
     texture_id: TextureId,
     uv: Rect,
     desired_size: Vec2,
-    bg_fill: Srgba,
-    tint: Srgba,
+    bg_fill: Color32,
+    tint: Color32,
 }
 
 impl Image {
@@ -18,7 +18,7 @@ impl Image {
             uv: Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             desired_size: desired_size.into(),
             bg_fill: Default::default(),
-            tint: color::WHITE,
+            tint: Color32::WHITE,
         }
     }
 
@@ -29,13 +29,13 @@ impl Image {
     }
 
     /// A solid color to put behind the image. Useful for transparent images.
-    pub fn bg_fill(mut self, bg_fill: impl Into<Srgba>) -> Self {
+    pub fn bg_fill(mut self, bg_fill: impl Into<Color32>) -> Self {
         self.bg_fill = bg_fill.into();
         self
     }
 
     /// Multiply image color with this. Default is WHITE (no tint).
-    pub fn tint(mut self, tint: impl Into<Srgba>) -> Self {
+    pub fn tint(mut self, tint: impl Into<Color32>) -> Self {
         self.tint = tint.into();
         self
     }
@@ -59,22 +59,22 @@ impl Image {
         if *bg_fill != Default::default() {
             let mut triangles = Triangles::default();
             triangles.add_colored_rect(rect, *bg_fill);
-            ui.painter().add(PaintCmd::triangles(triangles));
+            ui.painter().add(Shape::triangles(triangles));
         }
 
         {
             // TODO: builder pattern for Triangles
             let mut triangles = Triangles::with_texture(*texture_id);
             triangles.add_rect_with_uv(rect, *uv, *tint);
-            ui.painter().add(PaintCmd::triangles(triangles));
+            ui.painter().add(Shape::triangles(triangles));
         }
     }
 }
 
 impl Widget for Image {
     fn ui(self, ui: &mut Ui) -> Response {
-        let response = ui.allocate_response(self.desired_size, Sense::hover());
-        self.paint_at(ui, response.rect);
+        let (rect, response) = ui.allocate_at_least(self.desired_size, Sense::hover());
+        self.paint_at(ui, rect);
         response
     }
 }

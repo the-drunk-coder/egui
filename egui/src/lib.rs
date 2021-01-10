@@ -1,9 +1,9 @@
 //! Egui core library
 //!
-//! To get started with Egui, you can use one of the available integrations
-//! such as [`egui_web`](https://crates.io/crates/egui_web) or  [`egui_glium`](https://crates.io/crates/egui_glium).
+//! To quickly get started with Egui, you can take a look at [`egui_template`](https://github.com/emilk/egui_template)
+//! which uses [`eframe`](https://docs.rs/eframe).
 //!
-//! Whatever you use, you need an [`CtxRef`] (by convention referred to by `ctx`).
+//! To create a GUI using Egui you first need a [`CtxRef`] (by convention referred to by `ctx`).
 //! Use one of [`SidePanel`], [`TopPanel`], [`CentralPanel`], [`Window`] or [`Area`] to
 //! get access to an [`Ui`] where you can put widgets. For example:
 //!
@@ -26,8 +26,8 @@
 //!     let raw_input: egui::RawInput = my_integration.gather_input();
 //!     egui_ctx.begin_frame(raw_input);
 //!     my_app.ui(&egui_ctx); // add panels, windows and widgets to `egui_ctx` here
-//!     let (output, paint_commands) = egui_ctx.end_frame();
-//!     let paint_jobs = egui_ctx.tesselate(paint_commands); // create triangles to paint
+//!     let (output, shapes) = egui_ctx.end_frame();
+//!     let paint_jobs = egui_ctx.tessellate(shapes); // create triangles to paint
 //!     my_integration.paint(paint_jobs);
 //!     my_integration.set_cursor_icon(output.cursor_icon);
 //!     // Also see `egui::Output` for more
@@ -76,74 +76,97 @@
     rust_2018_idioms,
     unused_doc_comments,
 )]
+#![allow(clippy::manual_range_contains)]
 
-pub mod align;
 mod animation_manager;
-pub mod app;
 pub mod containers;
 mod context;
-pub mod demos;
 mod id;
 mod input;
 mod introspection;
 mod layers;
 mod layout;
-pub mod math;
 mod memory;
 pub mod menu;
-pub mod paint;
 mod painter;
-mod style;
+pub mod style;
 mod types;
 mod ui;
 pub mod util;
 pub mod widgets;
 
+pub use emath as math;
+pub use epaint as paint;
+pub use epaint::emath;
+
+pub use emath::{
+    clamp, lerp, pos2, remap, remap_clamp, vec2, Align, Align2, NumExt, Pos2, Rect, Vec2,
+};
+pub use epaint::{
+    color, mutex,
+    text::{FontDefinitions, FontFamily, TextStyle},
+    Color32, PaintJobs, Rgba, Shape, Stroke, Texture, TextureId,
+};
+
 pub use {
-    align::Align,
     containers::*,
     context::{Context, CtxRef},
-    demos::DemoApp,
     id::Id,
     input::*,
     layers::*,
     layout::*,
-    math::*,
     memory::Memory,
-    paint::{
-        color, FontDefinitions, FontFamily, PaintCmd, PaintJobs, Rgba, Srgba, Stroke, TextStyle,
-        Texture, TextureId,
-    },
     painter::Painter,
     style::Style,
     types::*,
     ui::Ui,
-    util::mutex,
     widgets::*,
 };
 
+// ----------------------------------------------------------------------------
+
 #[cfg(debug_assertions)]
-pub(crate) fn has_debug_assertions() -> bool {
+pub(crate) const fn has_debug_assertions() -> bool {
     true
 }
 
 #[cfg(not(debug_assertions))]
-pub(crate) fn has_debug_assertions() -> bool {
+pub(crate) const fn has_debug_assertions() -> bool {
     false
 }
 
-#[test]
-fn test_egui_e2e() {
-    let mut demo_windows = crate::demos::DemoWindows::default();
-    let mut ctx = crate::CtxRef::default();
-    let raw_input = crate::RawInput::default();
-
-    const NUM_FRAMES: usize = 5;
-    for _ in 0..NUM_FRAMES {
-        ctx.begin_frame(raw_input.clone());
-        demo_windows.ui(&ctx, &Default::default(), &mut None, |_ui| {});
-        let (_output, paint_commands) = ctx.end_frame();
-        let paint_jobs = ctx.tesselate(paint_commands);
-        assert!(!paint_jobs.is_empty());
+/// Helper function that adds a label when compiling with debug assertions enabled.
+pub fn warn_if_debug_build(ui: &mut crate::Ui) {
+    if crate::has_debug_assertions() {
+        ui.label(
+            crate::Label::new("‼ Debug build ‼")
+                .small()
+                .text_color(crate::Color32::RED),
+        )
+        .on_hover_text("Egui was compiled with debug assertions enabled.");
     }
+}
+
+// ----------------------------------------------------------------------------
+
+/// Create a [`Hyperlink`](crate::Hyperlink) to this file (and line) on Github
+///
+/// Example: `ui.add(github_link_file_line!("https://github.com/YOUR/PROJECT/blob/master/", "(source code)"));`
+#[macro_export]
+macro_rules! github_link_file_line {
+    ($github_url:expr, $label:expr) => {{
+        let url = format!("{}{}#L{}", $github_url, file!(), line!());
+        $crate::Hyperlink::new(url).text($label)
+    }};
+}
+
+/// Create a [`Hyperlink`](crate::Hyperlink) to this file on github.
+///
+/// Example: `ui.add(github_link_file!("https://github.com/YOUR/PROJECT/blob/master/", "(source code)"));`
+#[macro_export]
+macro_rules! github_link_file {
+    ($github_url:expr, $label:expr) => {{
+        let url = format!("{}{}", $github_url, file!());
+        $crate::Hyperlink::new(url).text($label)
+    }};
 }

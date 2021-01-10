@@ -15,7 +15,7 @@ use crate::*;
 /// }
 /// ```
 pub fn show_tooltip(ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui)) {
-    let tooltip_rect = ctx.memory().tooltip_rect;
+    let tooltip_rect = ctx.frame_state().tooltip_rect;
 
     let window_pos = if let Some(tooltip_rect) = tooltip_rect {
         tooltip_rect.left_bottom()
@@ -25,6 +25,8 @@ pub fn show_tooltip(ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui)) {
         let position = position.min(ctx.input().screen_rect().right_bottom() - expected_size);
         let position = position.max(ctx.input().screen_rect().left_top());
         position
+    } else if ctx.memory().everything_is_visible() {
+        Pos2::default()
     } else {
         return; // No good place for a tooltip :(
     };
@@ -34,7 +36,7 @@ pub fn show_tooltip(ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui)) {
     let response = show_popup(ctx, id, window_pos, add_contents);
 
     let tooltip_rect = tooltip_rect.unwrap_or_else(Rect::nothing);
-    ctx.memory().tooltip_rect = Some(tooltip_rect.union(response.rect));
+    ctx.frame_state().tooltip_rect = Some(tooltip_rect.union(response.rect));
 }
 
 /// Show some text at the current mouse position (if any).

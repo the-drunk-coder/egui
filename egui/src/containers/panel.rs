@@ -47,15 +47,19 @@ impl SidePanel {
         let mut panel_ui = Ui::new(ctx.clone(), layer_id, id, panel_rect, clip_rect);
 
         let frame = Frame::panel(&ctx.style());
-        let r = frame.show(&mut panel_ui, |ui| {
-            ui.set_min_height(ui.max_rect_finite().height()); // fill full height
-            add_contents(ui)
+        let (r, used_space) = frame.show(&mut panel_ui, |ui| {
+            let r = add_contents(ui);
+            let used_space = ui.min_rect();
+            ui.set_min_height(ui.max_rect_finite().height()); // Make sure the frame fills the full height
+            (r, used_space)
         });
 
         let panel_rect = panel_ui.min_rect();
         let response = panel_ui.interact(panel_rect, id, Sense::hover());
 
-        ctx.frame_state().allocate_left_panel(panel_rect);
+        // Only inform ctx about what we actually used, so we can shrink the native window to fit.
+        ctx.frame_state()
+            .allocate_left_panel(used_space.expand2(frame.margin));
 
         (r, response)
     }
@@ -106,15 +110,19 @@ impl TopPanel {
         let mut panel_ui = Ui::new(ctx.clone(), layer_id, id, panel_rect, clip_rect);
 
         let frame = Frame::panel(&ctx.style());
-        let r = frame.show(&mut panel_ui, |ui| {
-            ui.set_min_width(ui.max_rect_finite().width()); // fill full width
-            add_contents(ui)
+        let (r, used_space) = frame.show(&mut panel_ui, |ui| {
+            let r = add_contents(ui);
+            let used_space = ui.min_rect();
+            ui.set_min_width(ui.max_rect_finite().width()); // Make the frame fill full width
+            (r, used_space)
         });
 
         let panel_rect = panel_ui.min_rect();
         let response = panel_ui.interact(panel_rect, id, Sense::hover());
 
-        ctx.frame_state().allocate_top_panel(panel_rect);
+        // Only inform ctx about what we actually used, so we can shrink the native window to fit.
+        ctx.frame_state()
+            .allocate_top_panel(used_space.expand2(frame.margin));
 
         (r, response)
     }
@@ -137,11 +145,20 @@ impl TopPanel {
 /// });
 /// ```
 #[derive(Default)]
-pub struct CentralPanel {}
+pub struct CentralPanel {
+    frame: Option<Frame>,
+}
+
+impl CentralPanel {
+    pub fn frame(mut self, frame: Frame) -> Self {
+        self.frame = Some(frame);
+        self
+    }
+}
 
 impl CentralPanel {
     pub fn show<R>(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
-        let Self {} = self;
+        let Self { frame } = self;
 
         let panel_rect = ctx.available_rect();
 
@@ -151,18 +168,21 @@ impl CentralPanel {
         let clip_rect = ctx.input().screen_rect();
         let mut panel_ui = Ui::new(ctx.clone(), layer_id, id, panel_rect, clip_rect);
 
-        let frame = Frame::background(&ctx.style());
-        let r = frame.show(&mut panel_ui, |ui| {
+        let frame = frame.unwrap_or_else(|| Frame::central_panel(&ctx.style()));
+        let (r, used_space) = frame.show(&mut panel_ui, |ui| {
             let r = add_contents(ui);
-            ui.expand_to_include_rect(ui.max_rect()); // Use it all
-            r
+            let used_space = ui.min_rect();
+            ui.expand_to_include_rect(ui.max_rect()); // Expand frame to include it all
+            (r, used_space)
         });
 
         let panel_rect = panel_ui.min_rect();
         let id = Id::new("central_panel");
         let response = panel_ui.interact(panel_rect, id, Sense::hover());
 
-        ctx.frame_state().allocate_central_panel(panel_rect);
+        // Only inform ctx about what we actually used, so we can shrink the native window to fit.
+        ctx.frame_state()
+            .allocate_central_panel(used_space.expand2(frame.margin));
 
         (r, response)
     }

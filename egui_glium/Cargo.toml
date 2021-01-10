@@ -1,6 +1,6 @@
 [package]
 name = "egui_glium"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
 description = "Bindings for using Egui natively using the glium library"
 edition = "2018"
@@ -13,11 +13,32 @@ keywords = ["glium", "egui", "gui", "gamedev"]
 include = [ "**/*.rs", "Cargo.toml"]
 
 [dependencies]
-chrono = { version = "0.4" }
 clipboard = "0.5"
-directories-next = "2"
-egui = { version = "0.6.0", path = "../egui", features = ["serde", "serde_json"] }
+egui = { version = "0.7.0", path = "../egui" }
+epi = { version = "0.7.0", path = "../epi" }
 glium = "0.29"
-serde = "1"
-serde_json = "1"
 webbrowser = "0.5"
+
+# feature "http":
+ureq = { version = "2.0", optional = true }
+
+# feature "persistence":
+directories-next = { version = "2", optional = true }
+serde = { version = "1", optional = true }
+serde_json = { version = "1", optional = true }
+
+# feature "time"
+chrono = { version = "0.4", optional = true }
+
+[features]
+default = []
+http = ["ureq"]
+persistence = [
+    "directories-next",
+    "egui/persistence",
+    "epi/serde_json",
+    "epi/serde",
+    "serde_json",
+    "serde",
+]
+time = ["chrono"] # for seconds_since_midnight

@@ -1,15 +1,18 @@
+//! Egui theme (spacing, colors, etc).
+
 #![allow(clippy::if_same_then_else)]
 
 use crate::{
     color::*,
     math::*,
-    paint::{Stroke, TextStyle},
+    paint::{Shadow, Stroke, TextStyle},
     types::*,
 };
 
 /// Specifies the look and feel of a [`Ui`].
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Style {
     /// Default `TextStyle` for normal text (i.e. for `Label` and `TextEdit`).
     pub body_text_style: TextStyle,
@@ -38,7 +41,8 @@ impl Style {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Spacing {
     /// Horizontal and vertical spacing between widgets
     pub item_spacing: Vec2,
@@ -93,7 +97,8 @@ impl Spacing {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Interaction {
     /// Mouse must be the close to the side of a window to resize
     pub resize_grab_radius_side: f32,
@@ -103,7 +108,8 @@ pub struct Interaction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Visuals {
     /// Override default text color for all text.
     ///
@@ -118,7 +124,7 @@ pub struct Visuals {
     /// so that `visuals.text_color` is always used,
     /// but its alpha may be different based on whether or not
     /// it is disabled, non-interactive, hovered etc.
-    pub override_text_color: Option<Srgba>,
+    pub override_text_color: Option<Color32>,
 
     /// Visual styles of widgets
     pub widgets: Widgets,
@@ -127,12 +133,13 @@ pub struct Visuals {
 
     /// e.g. the background of the slider or text edit,
     /// needs to look different from other interactive stuff.
-    pub dark_bg_color: Srgba, // TODO: remove, rename, or clarify what it is for
+    pub dark_bg_color: Color32, // TODO: remove, rename, or clarify what it is for
 
     /// The color used for `Hyperlink`,
-    pub hyperlink_color: Srgba,
+    pub hyperlink_color: Color32,
 
     pub window_corner_radius: f32,
+    pub window_shadow: Shadow,
 
     pub resize_corner_size: f32,
 
@@ -155,7 +162,7 @@ impl Visuals {
         &self.widgets.noninteractive
     }
 
-    pub fn text_color(&self) -> Srgba {
+    pub fn text_color(&self) -> Color32 {
         self.override_text_color
             .unwrap_or_else(|| self.widgets.noninteractive.text_color())
     }
@@ -163,14 +170,16 @@ impl Visuals {
 
 /// Selected text, selected elements etc
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Selection {
-    pub bg_fill: Srgba,
+    pub bg_fill: Color32,
     pub stroke: Stroke,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Widgets {
     /// For an interactive widget that is being interacted with
     pub active: WidgetVisuals,
@@ -200,10 +209,10 @@ impl Widgets {
 
 /// bg = background, fg = foreground.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 pub struct WidgetVisuals {
     /// Background color of widget
-    pub bg_fill: Srgba,
+    pub bg_fill: Color32,
 
     /// For surrounding rectangle of things that need it,
     /// like buttons, the box of the checkbox, etc.
@@ -214,14 +223,14 @@ pub struct WidgetVisuals {
 
     /// Fill color of the interactive part of a component (slider grab, checkbox, ...)
     /// When you need a fill.
-    pub fg_fill: Srgba,
+    pub fg_fill: Color32,
 
     /// Stroke and text color of the interactive part of a component (button text, slider grab, check-mark, ...)
     pub fg_stroke: Stroke,
 }
 
 impl WidgetVisuals {
-    pub fn text_color(&self) -> Srgba {
+    pub fn text_color(&self) -> Color32 {
         self.fg_stroke.color
     }
 }
@@ -272,9 +281,10 @@ impl Default for Visuals {
             override_text_color: None,
             widgets: Default::default(),
             selection: Default::default(),
-            dark_bg_color: Srgba::black_alpha(140),
-            hyperlink_color: Srgba::from_rgb(90, 170, 255),
+            dark_bg_color: Color32::from_black_alpha(140),
+            hyperlink_color: Color32::from_rgb(90, 170, 255),
             window_corner_radius: 10.0,
+            window_shadow: Shadow::big(),
             resize_corner_size: 12.0,
             text_cursor_width: 2.0,
             clip_rect_margin: 1.0, // should be half the size of the widest frame stroke
@@ -288,8 +298,11 @@ impl Default for Visuals {
 impl Default for Selection {
     fn default() -> Self {
         Self {
-            bg_fill: Rgba::new(0.0, 0.5, 1.0, 0.0).multiply(0.15).into(), // additive!
-            stroke: Stroke::new(1.0, Rgba::new(0.3, 0.6, 1.0, 1.0)),
+            bg_fill: Rgba::from_rgb(0.0, 0.5, 1.0)
+                .additive()
+                .multiply(0.10)
+                .into(),
+            stroke: Stroke::new(1.0, Rgba::from_rgb(0.3, 0.6, 1.0)),
         }
     }
 }
@@ -298,39 +311,39 @@ impl Default for Widgets {
     fn default() -> Self {
         Self {
             active: WidgetVisuals {
-                bg_fill: Rgba::luminance_alpha(0.10, 0.5).into(),
-                bg_stroke: Stroke::new(2.0, WHITE),
+                bg_fill: Rgba::from_luminance_alpha(0.10, 0.5).into(),
+                bg_stroke: Stroke::new(2.0, Color32::WHITE),
                 corner_radius: 4.0,
-                fg_fill: srgba(120, 120, 200, 255),
-                fg_stroke: Stroke::new(2.0, WHITE),
+                fg_fill: Color32::from_rgb(120, 120, 200),
+                fg_stroke: Stroke::new(2.0, Color32::WHITE),
             },
             hovered: WidgetVisuals {
-                bg_fill: Rgba::luminance_alpha(0.06, 0.5).into(),
-                bg_stroke: Stroke::new(1.0, Rgba::white_alpha(0.5)),
+                bg_fill: Rgba::from_luminance_alpha(0.06, 0.5).into(),
+                bg_stroke: Stroke::new(1.0, Rgba::from_white_alpha(0.5)),
                 corner_radius: 4.0,
-                fg_fill: srgba(100, 100, 150, 255),
-                fg_stroke: Stroke::new(1.5, Srgba::gray(240)),
+                fg_fill: Color32::from_rgb(100, 100, 150),
+                fg_stroke: Stroke::new(1.5, Color32::from_gray(240)),
             },
             inactive: WidgetVisuals {
-                bg_fill: Rgba::luminance_alpha(0.04, 0.5).into(),
-                bg_stroke: Stroke::new(1.0, Rgba::white_alpha(0.06)), // default window outline. Should be pretty readable
+                bg_fill: Rgba::from_luminance_alpha(0.04, 0.5).into(),
+                bg_stroke: Stroke::new(1.0, Rgba::from_white_alpha(0.06)), // default window outline. Should be pretty readable
                 corner_radius: 4.0,
-                fg_fill: srgba(60, 60, 80, 255),
-                fg_stroke: Stroke::new(1.0, Srgba::gray(200)), // Should NOT look grayed out!
+                fg_fill: Color32::from_rgb(60, 60, 80),
+                fg_stroke: Stroke::new(1.0, Color32::from_gray(200)), // Should NOT look grayed out!
             },
             disabled: WidgetVisuals {
-                bg_fill: Rgba::luminance_alpha(0.02, 0.5).into(),
-                bg_stroke: Stroke::new(0.5, Srgba::gray(70)),
+                bg_fill: Rgba::from_luminance_alpha(0.02, 0.5).into(),
+                bg_stroke: Stroke::new(0.5, Color32::from_gray(70)),
                 corner_radius: 4.0,
-                fg_fill: srgba(50, 50, 50, 255),
-                fg_stroke: Stroke::new(1.0, Srgba::gray(140)), // Should look grayed out
+                fg_fill: Color32::from_rgb(50, 50, 50),
+                fg_stroke: Stroke::new(1.0, Color32::from_gray(140)), // Should look grayed out
             },
             noninteractive: WidgetVisuals {
-                bg_stroke: Stroke::new(1.0, Rgba::white_alpha(0.06)),
-                bg_fill: Rgba::luminance_alpha(0.010, 0.975).into(), // window background
+                bg_stroke: Stroke::new(1.0, Rgba::from_white_alpha(0.06)),
+                bg_fill: Rgba::from_luminance_alpha(0.010, 0.975).into(), // window background
                 corner_radius: 4.0,
                 fg_fill: Default::default(),
-                fg_stroke: Stroke::new(1.0, Srgba::gray(160)), // text color
+                fg_stroke: Stroke::new(1.0, Color32::from_gray(160)), // text color
             },
         }
     }
@@ -342,9 +355,7 @@ use crate::{widgets::*, Ui};
 
 impl Style {
     pub fn ui(&mut self, ui: &mut crate::Ui) {
-        if ui.button("Reset").clicked {
-            *self = Default::default();
-        }
+        crate::reset_button(ui, self);
 
         let Self {
             body_text_style,
@@ -368,9 +379,7 @@ impl Style {
 
 impl Spacing {
     pub fn ui(&mut self, ui: &mut crate::Ui) {
-        if ui.button("Reset").clicked {
-            *self = Default::default();
-        }
+        crate::reset_button(ui, self);
 
         let Self {
             item_spacing,
@@ -401,15 +410,12 @@ impl Spacing {
 
 impl Interaction {
     pub fn ui(&mut self, ui: &mut crate::Ui) {
-        if ui.button("Reset").clicked {
-            *self = Default::default();
-        }
+        crate::reset_button(ui, self);
 
         let Self {
             resize_grab_radius_side,
             resize_grab_radius_corner,
         } = self;
-
         ui.add(Slider::f32(resize_grab_radius_side, 0.0..=20.0).text("resize_grab_radius_side"));
         ui.add(
             Slider::f32(resize_grab_radius_corner, 0.0..=20.0).text("resize_grab_radius_corner"),
@@ -419,9 +425,7 @@ impl Interaction {
 
 impl Widgets {
     pub fn ui(&mut self, ui: &mut crate::Ui) {
-        if ui.button("Reset").clicked {
-            *self = Default::default();
-        }
+        crate::reset_button(ui, self);
 
         let Self {
             active,
@@ -444,7 +448,7 @@ impl Selection {
         let Self { bg_fill, stroke } = self;
 
         ui_color(ui, bg_fill, "bg_fill");
-        stroke.ui(ui, "stroke");
+        stroke_ui(ui, stroke, "stroke");
     }
 }
 
@@ -459,18 +463,16 @@ impl WidgetVisuals {
         } = self;
 
         ui_color(ui, bg_fill, "bg_fill");
-        bg_stroke.ui(ui, "bg_stroke");
+        stroke_ui(ui, bg_stroke, "bg_stroke");
         ui.add(Slider::f32(corner_radius, 0.0..=10.0).text("corner_radius"));
         ui_color(ui, fg_fill, "fg_fill");
-        fg_stroke.ui(ui, "fg_stroke (text)");
+        stroke_ui(ui, fg_stroke, "fg_stroke (text)");
     }
 }
 
 impl Visuals {
     pub fn ui(&mut self, ui: &mut crate::Ui) {
-        if ui.button("Reset").clicked {
-            *self = Default::default();
-        }
+        crate::reset_button(ui, self);
 
         let Self {
             override_text_color: _,
@@ -479,6 +481,7 @@ impl Visuals {
             dark_bg_color,
             hyperlink_color,
             window_corner_radius,
+            window_shadow,
             resize_corner_size,
             text_cursor_width,
             clip_rect_margin,
@@ -492,6 +495,7 @@ impl Visuals {
         ui_color(ui, dark_bg_color, "dark_bg_color");
         ui_color(ui, hyperlink_color, "hyperlink_color");
         ui.add(Slider::f32(window_corner_radius, 0.0..=20.0).text("window_corner_radius"));
+        shadow_ui(ui, window_shadow, "Window shadow:");
         ui.add(Slider::f32(resize_corner_size, 0.0..=20.0).text("resize_corner_size"));
         ui.add(Slider::f32(text_cursor_width, 0.0..=2.0).text("text_cursor_width"));
         ui.add(Slider::f32(clip_rect_margin, 0.0..=20.0).text("clip_rect_margin"));
@@ -506,24 +510,6 @@ impl Visuals {
             "Show which widgets make their parent higher",
         );
         ui.checkbox(debug_resize, "Debug Resize");
-    }
-}
-
-impl Stroke {
-    pub fn ui(&mut self, ui: &mut crate::Ui, text: &str) {
-        let Self { width, color } = self;
-        ui.horizontal(|ui| {
-            ui.add(DragValue::f32(width).speed(0.1).range(0.0..=5.0))
-                .on_hover_text("Width");
-            ui.color_edit_button_srgba(color);
-            ui.label(text);
-
-            // stroke preview:
-            let (_id, stroke_rect) = ui.allocate_space(ui.style().spacing.interact_size);
-            let left = stroke_rect.left_center();
-            let right = stroke_rect.right_center();
-            ui.painter().line_segment([left, right], (*width, *color));
-        });
     }
 }
 
@@ -561,7 +547,7 @@ fn ui_slider_vec2(
     .1
 }
 
-fn ui_color(ui: &mut Ui, srgba: &mut Srgba, text: &str) {
+fn ui_color(ui: &mut Ui, srgba: &mut Color32, text: &str) {
     ui.horizontal(|ui| {
         ui.color_edit_button_srgba(srgba);
         ui.label(text);

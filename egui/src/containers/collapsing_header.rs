@@ -1,14 +1,14 @@
 use std::hash::Hash;
 
 use crate::{
-    paint::{PaintCmd, TextStyle},
+    paint::{Shape, TextStyle},
     widgets::Label,
     *,
 };
 
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(default))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub(crate) struct State {
     open: bool,
 
@@ -35,7 +35,7 @@ impl State {
 
     // Helper
     pub fn is_open(ctx: &Context, id: Id) -> Option<bool> {
-        if ctx.memory().all_collpasing_are_open {
+        if ctx.memory().everything_is_visible() {
             Some(true)
         } else {
             ctx.memory()
@@ -52,7 +52,11 @@ impl State {
 
     /// 0 for closed, 1 for open, with tweening
     pub fn openness(&self, ctx: &Context, id: Id) -> f32 {
-        ctx.animate_bool(id, self.open || ctx.memory().all_collpasing_are_open)
+        if ctx.memory().everything_is_visible() {
+            1.0
+        } else {
+            ctx.animate_bool(id, self.open)
+        }
     }
 
     /// Show contents if we are open, with a nice animation between closed and open
@@ -110,12 +114,12 @@ pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     let rect = Rect::from_center_size(rect.center(), vec2(rect.width(), rect.height()) * 0.75);
     let mut points = vec![rect.left_top(), rect.right_top(), rect.center_bottom()];
     use std::f32::consts::TAU;
-    let rotation = Rot2::from_angle(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
+    let rotation = math::Rot2::from_angle(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
     for p in &mut points {
         *p = rect.center() + rotation * (*p - rect.center());
     }
 
-    ui.painter().add(PaintCmd::closed_line(points, stroke));
+    ui.painter().add(Shape::closed_line(points, stroke));
 }
 
 /// A header which can be collapsed/expanded, revealing a contained [`Ui`] region.
@@ -199,7 +203,7 @@ impl CollapsingHeader {
             state.toggle(ui);
         }
 
-        let bg_index = ui.painter().add(PaintCmd::Noop);
+        let bg_index = ui.painter().add(Shape::Noop);
 
         {
             let (mut icon_rect, _) = ui.style().spacing.icon_rectangles(header_response.rect);
@@ -225,7 +229,7 @@ impl CollapsingHeader {
 
         painter.set(
             bg_index,
-            PaintCmd::Rect {
+            Shape::Rect {
                 rect: header_response.rect,
                 corner_radius: ui.style().interact(&header_response).corner_radius,
                 fill: ui.style().interact(&header_response).bg_fill,

@@ -1,4 +1,4 @@
-# 🖌 Egui
+# 🖌 Egui: an easy-to-use GUI in pure Rust
 
 [![Latest version](https://img.shields.io/crates/v/egui.svg)](https://crates.io/crates/egui)
 [![Documentation](https://docs.rs/egui/badge.svg)](https://docs.rs/egui)
@@ -45,7 +45,7 @@ If you have questions, use [Discussions](https://github.com/emilk/egui/discussio
 ui.heading("My Egui Application");
 ui.horizontal(|ui| {
     ui.label("Your name: ");
-    ui.text_edit(&mut name);
+    ui.text_edit_singleline(&mut name);
 });
 ui.add(egui::Slider::u32(&mut age, 0..=120).text("age"));
 if ui.button("Click each year").clicked {
@@ -54,7 +54,7 @@ if ui.button("Click each year").clicked {
 ui.label(format!("Hello '{}', age {}", name, age));
 ```
 
-<img src="media/demo-2020-10-24.png" width="40%">
+<img src="media/demo-2021-01-02.png" width="60%">
 
 ## Goals
 
@@ -66,7 +66,7 @@ ui.label(format!("Hello '{}', age {}", name, age));
 * A simple 2D graphics API for custom painting
 * No callbacks
 * Pure immediate mode
-* Extensible: [easy to write your own widgets for Egui](https://github.com/emilk/egui/blob/master/egui/src/demos/toggle_switch.rs)
+* Extensible: [easy to write your own widgets for Egui](https://github.com/emilk/egui/blob/master/egui_demo_lib/src/apps/demo/toggle_switch.rs)
 * Modular: You should be able to use small parts of Egui and combine them in new ways
 * Safe: there is no `unsafe` code in Egui
 * Minimal dependencies
@@ -97,7 +97,7 @@ The obvious alternative to Egui is [`imgui-rs`](https://github.com/Gekkio/imgui-
 * Egui is pure Rust
 * Egui is easily compiled to WASM
 * Egui lets you use native Rust String types (`imgui-rs` forces you to use annoying macros and wrappers for zero-terminated strings)
-* [Writing your own widgets in Egui is simple](https://github.com/emilk/egui/blob/master/egui/src/demos/toggle_switch.rs)
+* [Writing your own widgets in Egui is simple](https://github.com/emilk/egui/blob/master/egui_demo_lib/src/apps/demo/toggle_switch.rs)
 
 Egui also tries to improve your experience in other small ways:
 
@@ -131,7 +131,7 @@ Loop:
 
 * Gather input (mouse, touches, keyboard, screen size, etc) and give it to Egui
 * Run application code (Immediate Mode GUI)
-* Tell Egui to tesselate the frame graphics to a triangle mesh
+* Tell Egui to tessellate the frame graphics to a triangle mesh
 * Render the triangle mesh with your favorite graphics API (see [OpenGL example](https://github.com/emilk/egui/blob/master/egui_glium/src/painter.rs))
 
 ## Integrations
@@ -173,8 +173,8 @@ loop {
     let raw_input: egui::RawInput = my_integration.gather_input();
     egui_ctx.begin_frame(raw_input);
     my_app.ui(&mut egui_ctx); // add panels, windows and widgets to `egui_ctx` here
-    let (output, paint_commands) = egui_ctx.end_frame();
-    let paint_jobs = egui_ctx.tesselate(paint_commands); // create triangles to paint
+    let (output, shapes) = egui_ctx.end_frame();
+    let paint_jobs = egui_ctx.tessellate(shapes); // create triangles to paint
     my_integration.paint(paint_jobs);
     my_integration.set_cursor_icon(output.cursor_icon);
     // Also see `egui::Output` for more

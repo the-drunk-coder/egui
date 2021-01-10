@@ -1,8 +1,8 @@
 use crate::*;
 
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(default))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub(crate) struct State {
     /// Positive offset means scrolling down/right
     offset: Vec2,
@@ -10,8 +10,10 @@ pub(crate) struct State {
     show_scroll: bool,
 
     /// Momentum, used for kinetic scrolling
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "persistence", serde(skip))]
     pub vel: Vec2,
+    /// Mouse offset relative to the top of the handle when started moving the handle.
+    scroll_start_offset_from_top: Option<f32>,
 }
 
 impl Default for State {
@@ -20,6 +22,7 @@ impl Default for State {
             offset: Vec2::zero(),
             show_scroll: false,
             vel: Vec2::zero(),
+            scroll_start_offset_from_top: None,
         }
     }
 }
@@ -31,6 +34,7 @@ pub struct ScrollArea {
     max_height: f32,
     always_show_scroll: bool,
     id_source: Option<Id>,
+    offset: Option<Vec2>,
 }
 
 impl ScrollArea {
@@ -45,6 +49,7 @@ impl ScrollArea {
             max_height,
             always_show_scroll: false,
             id_source: None,
+            offset: None,
         }
     }
 
@@ -58,6 +63,15 @@ impl ScrollArea {
     /// A source for the unique `Id`, e.g. `.id_source("second_scroll_area")` or `.id_source(loop_index)`.
     pub fn id_source(mut self, id_source: impl std::hash::Hash) -> Self {
         self.id_source = Some(Id::new(id_source));
+        self
+    }
+
+    /// Set the vertical scroll offset position.
+    ///
+    /// See also: [`Ui::scroll_to_cursor`](crate::ui::Ui::scroll_to_cursor) and
+    /// [`Response::scroll_to_me`](crate::types::Response::scroll_to_me)
+    pub fn scroll_offset(mut self, offset: f32) -> Self {
+        self.offset = Some(Vec2::new(0.0, offset));
         self
     }
 }
@@ -77,18 +91,23 @@ impl ScrollArea {
             max_height,
             always_show_scroll,
             id_source,
+            offset,
         } = self;
 
         let ctx = ui.ctx().clone();
 
         let id_source = id_source.unwrap_or_else(|| Id::new("scroll_area"));
         let id = ui.make_persistent_id(id_source);
-        let state = ctx
+        let mut state = ctx
             .memory()
             .scroll_areas
             .get(&id)
             .cloned()
             .unwrap_or_default();
+
+        if let Some(offset) = offset {
+            state.offset = offset;
+        }
 
         // content: size of contents (generally large; that's why we want scroll bars)
         // outer: size of scroll area including scroll bar(s)
@@ -155,6 +174,23 @@ impl Prepared {
 
         let content_size = content_ui.min_size();
 
+        // We take the scroll target so only this ScrollArea will use it.
+        let scroll_target = content_ui.ctx().frame_state().scroll_target.take();
+        if let Some((scroll_y, align)) = scroll_target {
+            let center_factor = align.to_factor();
+
+            let top = content_ui.min_rect().top();
+            let visible_range = top..=top + content_ui.clip_rect().height();
+            let offset_y = scroll_y - lerp(visible_range, center_factor);
+
+            let mut spacing = ui.style().spacing.item_spacing.y;
+
+            // Depending on the alignment we need to add or subtract the spacing
+            spacing *= remap(center_factor, 0.0..=1.0, -1.0..=1.0);
+
+            state.offset.y = offset_y + spacing;
+        }
+
         let width = if inner_rect.width().is_finite() {
             inner_rect.width().max(content_size.x) // Expand width to fit content
         } else {
@@ -197,9 +233,19 @@ impl Prepared {
             }
         }
 
-        // TODO: check that nothing else is being interacted with
+        let max_offset = content_size.y - inner_rect.height();
         if ui.rect_contains_mouse(outer_rect) {
-            state.offset.y -= ui.input().scroll_delta.y;
+            let mut frame_state = ui.ctx().frame_state();
+            let scroll_delta = frame_state.scroll_delta;
+
+            let scrolling_up = state.offset.y > 0.0 && scroll_delta.y > 0.0;
+            let scrolling_down = state.offset.y < max_offset && scroll_delta.y < 0.0;
+
+            if scrolling_up || scrolling_down {
+                state.offset.y -= scroll_delta.y;
+                // Clear scroll delta so no parent scroll will use it.
+                frame_state.scroll_delta = Vec2::zero();
+            }
         }
 
         let show_scroll_this_frame = content_is_too_small || always_show_scroll;
@@ -239,21 +285,30 @@ impl Prepared {
 
             if response.active {
                 if let Some(mouse_pos) = ui.input().mouse.pos {
-                    if handle_rect.contains(mouse_pos) {
-                        if inner_rect.top() <= mouse_pos.y && mouse_pos.y <= inner_rect.bottom() {
-                            state.offset.y +=
-                                ui.input().mouse.delta.y * content_size.y / inner_rect.height();
-                        }
-                    } else {
-                        // Center scroll at mouse pos:
-                        let mpos_top = mouse_pos.y - handle_rect.height() / 2.0;
-                        state.offset.y = remap(mpos_top, top..=bottom, 0.0..=content_size.y);
-                    }
+                    let scroll_start_offset_from_top =
+                        state.scroll_start_offset_from_top.get_or_insert_with(|| {
+                            if handle_rect.contains(mouse_pos) {
+                                mouse_pos.y - handle_rect.top()
+                            } else {
+                                let handle_top_pos_at_bottom = bottom - handle_rect.height();
+                                // Calculate the new handle top position, centering the handle on the mouse.
+                                let new_handle_top_pos = clamp(
+                                    mouse_pos.y - handle_rect.height() / 2.0,
+                                    top..=handle_top_pos_at_bottom,
+                                );
+                                mouse_pos.y - new_handle_top_pos
+                            }
+                        });
+
+                    let new_handle_top = mouse_pos.y - *scroll_start_offset_from_top;
+                    state.offset.y = remap(new_handle_top, top..=bottom, 0.0..=content_size.y);
                 }
+            } else {
+                state.scroll_start_offset_from_top = None;
             }
 
             state.offset.y = state.offset.y.max(0.0);
-            state.offset.y = state.offset.y.min(content_size.y - inner_rect.height());
+            state.offset.y = state.offset.y.min(max_offset);
 
             // Avoid frame-delay by calculating a new handle rect:
             let mut handle_rect = Rect::from_min_max(
@@ -270,7 +325,7 @@ impl Prepared {
 
             let visuals = ui.style().interact(&response);
 
-            ui.painter().add(paint::PaintCmd::Rect {
+            ui.painter().add(paint::Shape::Rect {
                 rect: outer_scroll_rect,
                 corner_radius,
                 fill: ui.style().visuals.dark_bg_color,
@@ -279,7 +334,7 @@ impl Prepared {
                 // stroke: visuals.bg_stroke,
             });
 
-            ui.painter().add(paint::PaintCmd::Rect {
+            ui.painter().add(paint::Shape::Rect {
                 rect: handle_rect.expand(-2.0),
                 corner_radius,
                 fill: visuals.fg_fill,

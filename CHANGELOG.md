@@ -2,21 +2,51 @@
 
 All notable changes to the Egui crate will be documented in this file.
 
-NOTE: `egui_web` and `egui_glium` has their own changelogs!
+NOTE: `epi`, `eframe`, `egui_web` and `egui_glium` has their own changelogs!
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
 ## Unreleased
 
+### Added ⭐
+
+* Add `ui.allocate_at_least` and `ui.allocate_exact_size`.
+
 ### Changed 🔧
 
+* Center window titles.
+* Tweak size and alignment of some emojis to match other text.
+* Rename `PaintCmd` to `Shape`.
+* Rename feature "serde" to "persistence".
+* Break out the modules `math` and `paint` into separate crates `emath` and `epaint`.
+
+### Fixed 🐛
+
+* Fixed a bug that would sometimes trigger a "Mismatching panels" panic in debug builds.
+
+## 0.7.0 - 2021-01-04
+
+### Added ⭐
+
+* Add `ui.scroll_to_cursor` and `response.scroll_to_me` ([#81](https://github.com/emilk/egui/pull/81) by [lucaspoffo](https://github.com/lucaspoffo)).
+* Add `window.id(…)` and `area.id(…)` for overriding the default `Id`.
+
+### Changed 🔧
+
+* Renamed `Srgba` to `Color32`.
+* All color contructions now starts with `from_`, e.g. `Color32::from_rgb`.
 * Renamed `FontFamily::VariableWidth` to `FontFamily::Proportional`.
-* Remove `pixels_per_point` from `FontDefinitions`.
+* Removed `pixels_per_point` from `FontDefinitions`.
 
 ### Fixed 🐛
 
 * `RepaintSignal` now implements `Sync` so it can be sent to a background thread.
+* `TextEdit` widgets are now slightly larger to accommodate their frames.
+
+### Deprecated
+
+* Deprecated `color::srgba`.
 
 
 ## 0.6.0 - 2020-12-26
@@ -135,7 +165,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 * Refactored the interface for `egui::app::App`.
 * Windows are now constrained to the screen.
 * `Context::begin_frame()` no longer returns a `Ui`. Instead put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-* `Context::end_frame()` now returns paint commands that need to be converted to triangles with `Context::tesselate()`.
+* `Context::end_frame()` now returns shapes that need to be converted to triangles with `Context::tessellate()`.
 * Anti-aliasing is now off by default in debug builds.
 
 ### Removed 🔥
@@ -153,7 +183,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 * Unicode characters in labels (limited by [what the default font supports](https://fonts.google.com/specimen/Comfortaa#glyphs))
 * Simple drop-down combo box menu
 * Logarithmic sliders
-* Optimization: coarse culling in the tesselator
+* Optimization: coarse culling in the tessellator
 * CHANGED: switch argument order of `ui.checkbox` and `ui.radio`
 
 ## 0.1.4 - 2020-09-08
