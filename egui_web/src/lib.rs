@@ -1,12 +1,22 @@
+//! [`egui`] bindings for web apps (compiling to WASM).
+//!
+//! This library is an [`epi`] backend.
+//!
+//! If you are writing an app, you may want to look at [`eframe`](https://docs.rs/eframe) instead.
+
 #![forbid(unsafe_code)]
 #![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
-#![warn(clippy::all)]
+#![warn(clippy::all, rust_2018_idioms)]
 
 pub mod backend;
-pub mod fetch;
+#[cfg(feature = "http")]
+pub mod http;
 pub mod webgl;
 
 pub use backend::*;
+
+pub use wasm_bindgen;
+pub use web_sys;
 
 use egui::mutex::Mutex;
 use std::sync::Arc;
@@ -145,6 +155,7 @@ pub fn local_storage_remove(key: &str) {
     local_storage().map(|storage| storage.remove_item(key));
 }
 
+#[cfg(feature = "persistence")]
 pub fn load_memory(ctx: &egui::Context) {
     if let Some(memory_string) = local_storage_get("egui_memory_json") {
         match serde_json::from_str(&memory_string) {
@@ -158,6 +169,10 @@ pub fn load_memory(ctx: &egui::Context) {
     }
 }
 
+#[cfg(not(feature = "persistence"))]
+pub fn load_memory(_: &egui::Context) {}
+
+#[cfg(feature = "persistence")]
 pub fn save_memory(ctx: &egui::Context) {
     match serde_json::to_string(&*ctx.memory()) {
         Ok(json) => {
@@ -169,10 +184,13 @@ pub fn save_memory(ctx: &egui::Context) {
     }
 }
 
+#[cfg(not(feature = "persistence"))]
+pub fn save_memory(_: &egui::Context) {}
+
 #[derive(Default)]
 pub struct LocalStorage {}
 
-impl egui::app::Storage for LocalStorage {
+impl epi::Storage for LocalStorage {
     fn get_string(&self, key: &str) -> Option<String> {
         local_storage_get(key)
     }
@@ -197,9 +215,13 @@ pub fn handle_output(output: &egui::Output) {
         crate::open_url(url);
     }
 
+    #[cfg(web_sys_unstable_apis)]
     if !copied_text.is_empty() {
         set_clipboard_text(copied_text);
     }
+
+    #[cfg(not(web_sys_unstable_apis))]
+    let _ = copied_text;
 }
 
 pub fn set_cursor_icon(cursor: egui::CursorIcon) -> Option<()> {
@@ -211,6 +233,7 @@ pub fn set_cursor_icon(cursor: egui::CursorIcon) -> Option<()> {
         .ok()
 }
 
+#[cfg(web_sys_unstable_apis)]
 pub fn set_clipboard_text(s: &str) {
     if let Some(window) = web_sys::window() {
         let clipboard = window.navigator().clipboard();
@@ -305,22 +328,58 @@ pub fn translate_key(key: &str) -> Option<egui::Key> {
         "ArrowLeft" => Some(egui::Key::ArrowLeft),
         "ArrowRight" => Some(egui::Key::ArrowRight),
         "ArrowUp" => Some(egui::Key::ArrowUp),
+
+        "Esc" | "Escape" => Some(egui::Key::Escape),
+        "Tab" => Some(egui::Key::Tab),
         "Backspace" => Some(egui::Key::Backspace),
-        "Delete" => Some(egui::Key::Delete),
-        "End" => Some(egui::Key::End),
         "Enter" => Some(egui::Key::Enter),
         "Space" => Some(egui::Key::Space),
-        "Esc" | "Escape" => Some(egui::Key::Escape),
+
         "Help" | "Insert" => Some(egui::Key::Insert),
+        "Delete" => Some(egui::Key::Delete),
         "Home" => Some(egui::Key::Home),
-        "PageDown" => Some(egui::Key::PageDown),
+        "End" => Some(egui::Key::End),
         "PageUp" => Some(egui::Key::PageUp),
-        "Tab" => Some(egui::Key::Tab),
+        "PageDown" => Some(egui::Key::PageDown),
+
+        "0" => Some(egui::Key::Num0),
+        "1" => Some(egui::Key::Num1),
+        "2" => Some(egui::Key::Num2),
+        "3" => Some(egui::Key::Num3),
+        "4" => Some(egui::Key::Num4),
+        "5" => Some(egui::Key::Num5),
+        "6" => Some(egui::Key::Num6),
+        "7" => Some(egui::Key::Num7),
+        "8" => Some(egui::Key::Num8),
+        "9" => Some(egui::Key::Num9),
+
         "a" | "A" => Some(egui::Key::A),
+        "b" | "B" => Some(egui::Key::B),
+        "c" | "C" => Some(egui::Key::C),
+        "d" | "D" => Some(egui::Key::D),
+        "e" | "E" => Some(egui::Key::E),
+        "f" | "F" => Some(egui::Key::F),
+        "g" | "G" => Some(egui::Key::G),
+        "h" | "H" => Some(egui::Key::H),
+        "i" | "I" => Some(egui::Key::I),
+        "j" | "J" => Some(egui::Key::J),
         "k" | "K" => Some(egui::Key::K),
+        "l" | "L" => Some(egui::Key::L),
+        "m" | "M" => Some(egui::Key::M),
+        "n" | "N" => Some(egui::Key::N),
+        "o" | "O" => Some(egui::Key::O),
+        "p" | "P" => Some(egui::Key::P),
+        "q" | "Q" => Some(egui::Key::Q),
+        "r" | "R" => Some(egui::Key::R),
+        "s" | "S" => Some(egui::Key::S),
+        "t" | "T" => Some(egui::Key::T),
         "u" | "U" => Some(egui::Key::U),
+        "v" | "V" => Some(egui::Key::V),
         "w" | "W" => Some(egui::Key::W),
+        "x" | "X" => Some(egui::Key::X),
+        "y" | "Y" => Some(egui::Key::Y),
         "z" | "Z" => Some(egui::Key::Z),
+
         _ => None,
     }
 }
@@ -436,6 +495,7 @@ fn install_document_events(runner_ref: &AppRunnerRef) -> Result<(), JsValue> {
         closure.forget();
     }
 
+    #[cfg(web_sys_unstable_apis)]
     {
         // paste
         let runner_ref = runner_ref.clone();
@@ -452,6 +512,7 @@ fn install_document_events(runner_ref: &AppRunnerRef) -> Result<(), JsValue> {
         closure.forget();
     }
 
+    #[cfg(web_sys_unstable_apis)]
     {
         // cut
         let runner_ref = runner_ref.clone();
@@ -464,6 +525,7 @@ fn install_document_events(runner_ref: &AppRunnerRef) -> Result<(), JsValue> {
         closure.forget();
     }
 
+    #[cfg(web_sys_unstable_apis)]
     {
         // copy
         let runner_ref = runner_ref.clone();

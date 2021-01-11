@@ -1,10 +1,11 @@
 use crate::{
-    align::{anchor_rect, Align, LEFT_TOP},
-    color,
-    layers::PaintCmdIdx,
-    math::{Pos2, Rect, Vec2},
-    paint::{Fonts, Galley, PaintCmd, Stroke, TextStyle},
-    CtxRef, LayerId, Srgba,
+    layers::ShapeIdx,
+    math::{Align2, Pos2, Rect, Vec2},
+    paint::{
+        text::{Fonts, Galley, TextStyle},
+        Shape, Stroke,
+    },
+    Color32, CtxRef, LayerId,
 };
 
 /// Helper to paint shapes and text to a specific region on a specific layer.
@@ -12,7 +13,7 @@ use crate::{
 /// All coordinates are screen coordinates in the unit points (one point can consist of many physical pixels).
 #[derive(Clone)]
 pub struct Painter {
-    /// Source of fonts and destination of paint commands
+    /// Source of fonts and destination of shapes
     ctx: CtxRef,
 
     /// Where we paint
@@ -108,50 +109,50 @@ impl Painter {
     /// It is up to the caller to make sure there is room for this.
     /// Can be used for free painting.
     /// NOTE: all coordinates are screen coordinates!
-    pub fn add(&self, paint_cmd: PaintCmd) -> PaintCmdIdx {
+    pub fn add(&self, shape: Shape) -> ShapeIdx {
         self.ctx
             .graphics()
             .list(self.layer_id)
-            .add(self.clip_rect, paint_cmd)
+            .add(self.clip_rect, shape)
     }
 
-    pub fn extend(&self, cmds: Vec<PaintCmd>) {
+    pub fn extend(&self, shapes: Vec<Shape>) {
         self.ctx
             .graphics()
             .list(self.layer_id)
-            .extend(self.clip_rect, cmds);
+            .extend(self.clip_rect, shapes);
     }
 
-    /// Modify an existing command.
-    pub fn set(&self, idx: PaintCmdIdx, cmd: PaintCmd) {
+    /// Modify an existing [`Shape`].
+    pub fn set(&self, idx: ShapeIdx, shape: Shape) {
         self.ctx
             .graphics()
             .list(self.layer_id)
-            .set(idx, self.clip_rect, cmd)
+            .set(idx, self.clip_rect, shape)
     }
 }
 
 /// ## Debug painting
 impl Painter {
-    pub fn debug_rect(&mut self, rect: Rect, color: Srgba, text: impl Into<String>) {
+    pub fn debug_rect(&mut self, rect: Rect, color: Color32, text: impl Into<String>) {
         self.rect_stroke(rect, 0.0, (1.0, color));
         let text_style = TextStyle::Monospace;
-        self.text(rect.min, LEFT_TOP, text.into(), text_style, color);
+        self.text(rect.min, Align2::LEFT_TOP, text.into(), text_style, color);
     }
 
     pub fn error(&self, pos: Pos2, text: impl std::fmt::Display) -> Rect {
         let text_style = TextStyle::Monospace;
         let font = &self.fonts()[text_style];
         let galley = font.layout_multiline(format!("🔥 {}", text), f32::INFINITY);
-        let rect = anchor_rect(Rect::from_min_size(pos, galley.size), LEFT_TOP);
+        let rect = Align2::LEFT_TOP.anchor_rect(Rect::from_min_size(pos, galley.size));
         let frame_rect = rect.expand(2.0);
-        self.add(PaintCmd::Rect {
+        self.add(Shape::Rect {
             rect: frame_rect,
             corner_radius: 0.0,
-            fill: Srgba::black_alpha(240),
-            stroke: Stroke::new(1.0, color::RED),
+            fill: Color32::from_black_alpha(240),
+            stroke: Stroke::new(1.0, Color32::RED),
         });
-        self.galley(rect.min, galley, text_style, color::RED);
+        self.galley(rect.min, galley, text_style, Color32::RED);
         frame_rect
     }
 }
@@ -159,7 +160,7 @@ impl Painter {
 /// # Paint different primitives
 impl Painter {
     pub fn line_segment(&self, points: [Pos2; 2], stroke: impl Into<Stroke>) {
-        self.add(PaintCmd::LineSegment {
+        self.add(Shape::LineSegment {
             points,
             stroke: stroke.into(),
         });
@@ -169,10 +170,10 @@ impl Painter {
         &self,
         center: Pos2,
         radius: f32,
-        fill_color: impl Into<Srgba>,
+        fill_color: impl Into<Color32>,
         stroke: impl Into<Stroke>,
     ) {
-        self.add(PaintCmd::Circle {
+        self.add(Shape::Circle {
             center,
             radius,
             fill: fill_color.into(),
@@ -180,8 +181,8 @@ impl Painter {
         });
     }
 
-    pub fn circle_filled(&self, center: Pos2, radius: f32, fill_color: impl Into<Srgba>) {
-        self.add(PaintCmd::Circle {
+    pub fn circle_filled(&self, center: Pos2, radius: f32, fill_color: impl Into<Color32>) {
+        self.add(Shape::Circle {
             center,
             radius,
             fill: fill_color.into(),
@@ -190,7 +191,7 @@ impl Painter {
     }
 
     pub fn circle_stroke(&self, center: Pos2, radius: f32, stroke: impl Into<Stroke>) {
-        self.add(PaintCmd::Circle {
+        self.add(Shape::Circle {
             center,
             radius,
             fill: Default::default(),
@@ -202,10 +203,10 @@ impl Painter {
         &self,
         rect: Rect,
         corner_radius: f32,
-        fill_color: impl Into<Srgba>,
+        fill_color: impl Into<Color32>,
         stroke: impl Into<Stroke>,
     ) {
-        self.add(PaintCmd::Rect {
+        self.add(Shape::Rect {
             rect,
             corner_radius,
             fill: fill_color.into(),
@@ -213,8 +214,8 @@ impl Painter {
         });
     }
 
-    pub fn rect_filled(&self, rect: Rect, corner_radius: f32, fill_color: impl Into<Srgba>) {
-        self.add(PaintCmd::Rect {
+    pub fn rect_filled(&self, rect: Rect, corner_radius: f32, fill_color: impl Into<Color32>) {
+        self.add(Shape::Rect {
             rect,
             corner_radius,
             fill: fill_color.into(),
@@ -223,7 +224,7 @@ impl Painter {
     }
 
     pub fn rect_stroke(&self, rect: Rect, corner_radius: f32, stroke: impl Into<Stroke>) {
-        self.add(PaintCmd::Rect {
+        self.add(Shape::Rect {
             rect,
             corner_radius,
             fill: Default::default(),
@@ -254,21 +255,21 @@ impl Painter {
     pub fn text(
         &self,
         pos: Pos2,
-        anchor: (Align, Align),
+        anchor: Align2,
         text: impl Into<String>,
         text_style: TextStyle,
-        text_color: Srgba,
+        text_color: Color32,
     ) -> Rect {
         let font = &self.fonts()[text_style];
         let galley = font.layout_multiline(text.into(), f32::INFINITY);
-        let rect = anchor_rect(Rect::from_min_size(pos, galley.size), anchor);
+        let rect = anchor.anchor_rect(Rect::from_min_size(pos, galley.size));
         self.galley(rect.min, galley, text_style, text_color);
         rect
     }
 
     /// Paint text that has already been layed out in a `Galley`.
-    pub fn galley(&self, pos: Pos2, galley: Galley, text_style: TextStyle, color: Srgba) {
-        self.add(PaintCmd::Text {
+    pub fn galley(&self, pos: Pos2, galley: Galley, text_style: TextStyle, color: Color32) {
+        self.add(Shape::Text {
             pos,
             galley,
             text_style,

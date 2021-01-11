@@ -2,7 +2,7 @@
 
 use std::ops::RangeInclusive;
 
-use crate::{math::NumExt, paint::*, widgets::Label, *};
+use crate::{widgets::Label, *};
 
 // ----------------------------------------------------------------------------
 
@@ -44,7 +44,7 @@ pub struct Slider<'a> {
     smart_aim: bool,
     // TODO: label: Option<Label>
     text: Option<String>,
-    text_color: Option<Srgba>,
+    text_color: Option<Color32>,
     min_decimals: usize,
     max_decimals: Option<usize>,
 }
@@ -133,7 +133,7 @@ impl<'a> Slider<'a> {
         self
     }
 
-    pub fn text_color(mut self, text_color: Srgba) -> Self {
+    pub fn text_color(mut self, text_color: Color32) -> Self {
         self.text_color = Some(text_color);
         self
     }
@@ -209,7 +209,7 @@ impl<'a> Slider<'a> {
 
     fn set_value(&mut self, mut value: f64) {
         if let Some(max_decimals) = self.max_decimals {
-            value = round_to_decimals(value, max_decimals);
+            value = math::round_to_decimals(value, max_decimals);
         }
         set(&mut self.get_set_value, value);
     }
@@ -277,14 +277,14 @@ impl<'a> Slider<'a> {
             );
             let marker_center_x = self.x_from_value(value, x_range);
 
-            ui.painter().add(PaintCmd::Rect {
+            ui.painter().add(Shape::Rect {
                 rect: rail_rect,
                 corner_radius: rail_radius,
                 fill: ui.style().visuals.widgets.inactive.bg_fill,
                 stroke: ui.style().visuals.widgets.inactive.bg_stroke,
             });
 
-            ui.painter().add(PaintCmd::Circle {
+            ui.painter().add(Shape::Circle {
                 center: pos2(marker_center_x, rail_rect.center().y),
                 radius: handle_radius(rect),
                 fill: ui.style().interact(response).fg_fill,
@@ -366,13 +366,13 @@ impl<'a> Slider<'a> {
         let auto_decimals = clamp(auto_decimals, min_decimals..=max_decimals);
 
         if min_decimals == max_decimals {
-            format_with_minimum_decimals(value, max_decimals)
+            math::format_with_minimum_decimals(value, max_decimals)
         } else if value == 0.0 {
             "0".to_owned()
         } else if range == 0.0 {
             value.to_string()
         } else {
-            format_with_decimals_in_range(value, auto_decimals..=max_decimals)
+            math::format_with_decimals_in_range(value, auto_decimals..=max_decimals)
         }
     }
 }

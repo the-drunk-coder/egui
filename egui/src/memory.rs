@@ -2,12 +2,14 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     area, collapsing_header, menu,
-    paint::color::{Hsva, Srgba},
+    paint::color::{Color32, Hsva},
     resize, scroll_area,
     util::Cache,
     widgets::text_edit,
-    window, Id, LayerId, Pos2, Rect,
+    window, Id, LayerId, Pos2, Rect, Style,
 };
+
+// ----------------------------------------------------------------------------
 
 /// The data that Egui persists between frames.
 ///
@@ -16,57 +18,60 @@ use crate::{
 ///
 /// If you want this to persist when closing your app you should serialize `Memory` and store it.
 #[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(default))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Memory {
-    /// All `Id`s that were used this frame.
-    /// Used to debug `Id` clashes of widgets.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) used_ids: ahash::AHashMap<Id, Pos2>,
+    pub(crate) options: Options,
 
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "persistence", serde(skip))]
     pub(crate) interaction: Interaction,
 
     // states of various types of widgets
     pub(crate) collapsing_headers: HashMap<Id, collapsing_header::State>,
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "persistence", serde(skip))]
     pub(crate) menu_bar: HashMap<Id, menu::BarState>,
     pub(crate) resize: HashMap<Id, resize::State>,
     pub(crate) scroll_areas: HashMap<Id, scroll_area::State>,
     pub(crate) text_edit: HashMap<Id, text_edit::State>,
 
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "persistence", serde(skip))]
     pub(crate) window_interaction: Option<window::WindowInteraction>,
 
     /// For temporary edit of e.g. a slider value.
-    /// Couples with `kb_focus_id`.
-    #[cfg_attr(feature = "serde", serde(skip))]
+    /// Couples with [`Interaction::kb_focus_id`].
+    #[cfg_attr(feature = "persistence", serde(skip))]
     pub(crate) temp_edit_string: Option<String>,
 
     pub(crate) areas: Areas,
 
     /// Used by color picker
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) color_cache: Cache<Srgba, Hsva>,
+    #[cfg_attr(feature = "persistence", serde(skip))]
+    pub(crate) color_cache: Cache<Color32, Hsva>,
 
     /// Which popup-window is open (if any)?
     /// Could be a combo box, color picker, menu etc.
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "persistence", serde(skip))]
     popup: Option<Id>,
 
-    /// If a tooltip has been shown this frame, where was it?
-    /// This is used to prevent multiple tooltips to cover each other.
-    /// Initialized to `None` at the start of each frame.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) tooltip_rect: Option<Rect>,
-
-    /// Useful for debugging, benchmarking etc.
-    pub all_collpasing_are_open: bool,
-    /// Useful for debugging, benchmarking etc.
-    pub all_menus_are_open: bool,
-    /// Useful for debugging, benchmarking etc.
-    pub all_windows_are_open: bool,
+    #[cfg_attr(feature = "persistence", serde(skip))]
+    everything_is_visible: bool,
 }
+
+// ----------------------------------------------------------------------------
+
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
+pub(crate) struct Options {
+    /// The default style for new `Ui`:s.
+    pub(crate) style: std::sync::Arc<Style>,
+    /// Controls the tessellator.
+    pub(crate) tessellation_options: crate::paint::TessellationOptions,
+    /// Font sizes etc.
+    pub(crate) font_definitions: crate::paint::text::FontDefinitions,
+}
+
+// ----------------------------------------------------------------------------
 
 /// Say there is a button in a scroll area.
 /// If the user clicks the button, the button should click.
@@ -167,16 +172,14 @@ impl Memory {
         prev_input: &crate::input::InputState,
         new_input: &crate::input::RawInput,
     ) {
-        self.used_ids.clear();
         self.interaction.begin_frame(prev_input, new_input);
-        self.tooltip_rect = None;
 
         if !prev_input.mouse.down {
             self.window_interaction = None;
         }
     }
 
-    pub(crate) fn end_frame(&mut self) {
+    pub(crate) fn end_frame(&mut self, used_ids: &epaint::ahash::AHashMap<Id, Pos2>) {
         self.areas.end_frame();
 
         if let Some(kb_focus_id) = self.interaction.kb_focus_id {
@@ -184,8 +187,8 @@ impl Memory {
             let recently_gained_kb_focus =
                 self.interaction.kb_focus_id_previous_frame != Some(kb_focus_id);
 
-            if !recently_gained_kb_focus && !self.used_ids.contains_key(&kb_focus_id) {
-                // Dead-mans-switch: the widget with kb focus has dissappeared!
+            if !recently_gained_kb_focus && !used_ids.contains_key(&kb_focus_id) {
+                // Dead-mans-switch: the widget with kb focus has disappeared!
                 self.interaction.kb_focus_id = None;
             }
         }
@@ -259,7 +262,7 @@ impl Memory {
 /// Only one can be be open at a time.
 impl Memory {
     pub fn is_popup_open(&mut self, popup_id: Id) -> bool {
-        self.popup == Some(popup_id)
+        self.popup == Some(popup_id) || self.everything_is_visible()
     }
 
     pub fn open_popup(&mut self, popup_id: Id) {
@@ -277,6 +280,24 @@ impl Memory {
             self.open_popup(popup_id);
         }
     }
+
+    /// If true, all windows, menus, tooltips etc are to be visible at once.
+    ///
+    /// This is useful for testing, benchmarking, pre-caching, etc.
+    ///
+    /// Experimental feature!
+    pub fn everything_is_visible(&self) -> bool {
+        self.everything_is_visible
+    }
+
+    /// If true, all windows, menus, tooltips etc are to be visible at once.
+    ///
+    /// This is useful for testing, benchmarking, pre-caching, etc.
+    ///
+    /// Experimental feature!
+    pub fn set_everything_is_visible(&mut self, value: bool) {
+        self.everything_is_visible = value;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -284,8 +305,8 @@ impl Memory {
 /// Keeps track of `Area`s, which are free-floating `Ui`s.
 /// These `Area`s can be in any `Order`.
 #[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(default))]
+#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "persistence", serde(default))]
 pub struct Areas {
     areas: HashMap<Id, area::State>,
     /// Top is last

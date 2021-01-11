@@ -1,8 +1,10 @@
-#![allow(clippy::float_cmp)]
+// #![warn(missing_docs)]
 
 use std::{hash::Hash, sync::Arc};
 
-use crate::{color::*, containers::*, layout::*, mutex::MutexGuard, paint::*, widgets::*, *};
+use crate::{
+    color::*, containers::*, layout::*, mutex::MutexGuard, paint::text::Fonts, widgets::*, *,
+};
 
 /// This is what you use to place widgets.
 ///
@@ -231,6 +233,7 @@ impl Ui {
     /// Set the maximum width of the ui.
     /// You won't be able to shrink it below the current minimum size.
     pub fn set_max_width(&mut self, width: f32) {
+        #![allow(clippy::float_cmp)]
         if self.layout.main_dir() == Direction::RightToLeft {
             debug_assert_eq!(self.min_rect().max.x, self.max_rect().max.x);
             self.region.max_rect.min.x =
@@ -245,6 +248,7 @@ impl Ui {
     /// Set the maximum height of the ui.
     /// You won't be able to shrink it below the current minimum size.
     pub fn set_max_height(&mut self, height: f32) {
+        #![allow(clippy::float_cmp)]
         if self.layout.main_dir() == Direction::BottomUp {
             debug_assert_eq!(self.min_rect().max.y, self.region.max_rect.max.y);
             self.region.max_rect.min.y =
@@ -268,6 +272,7 @@ impl Ui {
     /// Set the minimum width of the ui.
     /// This can't shrink the ui, only make it larger.
     pub fn set_min_width(&mut self, width: f32) {
+        #![allow(clippy::float_cmp)]
         if self.layout.main_dir() == Direction::RightToLeft {
             debug_assert_eq!(self.region.min_rect.max.x, self.region.max_rect.max.x);
             let min_rect = &mut self.region.min_rect;
@@ -283,6 +288,7 @@ impl Ui {
     /// Set the minimum height of the ui.
     /// This can't shrink the ui, only make it larger.
     pub fn set_min_height(&mut self, height: f32) {
+        #![allow(clippy::float_cmp)]
         if self.layout.main_dir() == Direction::BottomUp {
             debug_assert_eq!(self.region.min_rect.max.y, self.region.max_rect.max.y);
             let min_rect = &mut self.region.min_rect;
@@ -345,7 +351,7 @@ impl Ui {
 
     /// In case of a wrapping layout, how much space is left on this row/column?
     pub fn available_size_before_wrap(&self) -> Vec2 {
-        self.layout.available_size_before_wrap(&self.region)
+        self.layout.available_rect_before_wrap(&self.region).size()
     }
 
     /// This is like `available_size_before_wrap()`, but will never be infinite.
@@ -411,13 +417,9 @@ impl Ui {
     }
 
     /// Is the mouse above this `Ui`?
+    /// Equivalent to `ui.rect_contains_mouse(ui.min_rect())`
     pub fn ui_contains_mouse(&self) -> bool {
-        if let Some(mouse_pos) = self.input().mouse.pos {
-            self.clip_rect().contains(mouse_pos)
-                && self.ctx().layer_id_at(mouse_pos) == Some(self.layer_id())
-        } else {
-            false
-        }
+        self.rect_contains_mouse(self.min_rect())
     }
 
     #[deprecated = "Use: interact(rect, id, Sense::hover())"]
@@ -457,11 +459,32 @@ impl Ui {
     /// # let mut ui = egui::Ui::__test();
     /// let response = ui.allocate_response(egui::vec2(100.0, 200.0), egui::Sense::click());
     /// if response.clicked { /* … */ }
-    /// ui.painter().rect_stroke(response.rect, 0.0, (1.0, egui::color::WHITE));
+    /// ui.painter().rect_stroke(response.rect, 0.0, (1.0, egui::Color32::WHITE));
     /// ```
     pub fn allocate_response(&mut self, desired_size: Vec2, sense: Sense) -> Response {
         let (id, rect) = self.allocate_space(desired_size);
         self.interact(rect, id, sense)
+    }
+
+    /// Returns a `Rect` with exactly what you asked for.
+    ///
+    /// The response rect will be larger if this is part of a justified layout or similar.
+    /// This means that iof this is a narrow widget in a wide justified layout, then
+    /// the widget will react to interactions outside the returned `Rect`.
+    pub fn allocate_exact_size(&mut self, desired_size: Vec2, sense: Sense) -> (Rect, Response) {
+        let response = self.allocate_response(desired_size, sense);
+        let rect = self
+            .layout()
+            .align_size_within_rect(desired_size, response.rect);
+        (rect, response)
+    }
+
+    /// Allocate at least as much space as needed, and interact with that rect.
+    ///
+    /// The returned `Rect` will be the same size as `Response::rect`.
+    pub fn allocate_at_least(&mut self, desired_size: Vec2, sense: Sense) -> (Rect, Response) {
+        let response = self.allocate_response(desired_size, sense);
+        (response.rect, response)
     }
 
     /// Reserve this much space and move the cursor.
@@ -496,9 +519,10 @@ impl Ui {
         let debug_expand_height = self.style().visuals.debug_expand_height;
 
         if (debug_expand_width && too_wide) || (debug_expand_height && too_high) {
-            self.painter.rect_stroke(rect, 0.0, (1.0, LIGHT_BLUE));
+            self.painter
+                .rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_BLUE));
 
-            let color = color::Srgba::from_rgb(200, 0, 0);
+            let color = color::Color32::from_rgb(200, 0, 0);
             let width = 2.5;
 
             let paint_line_seg = |a, b| self.painter().line_segment([a, b], (width, color));
@@ -598,6 +622,28 @@ impl Ui {
         let painter = Painter::new(self.ctx().clone(), self.layer_id(), clip_rect);
         (response, painter)
     }
+
+    /// Move the scroll to this cursor position with the specified alignment.
+    ///
+    /// ```
+    /// # use egui::Align;
+    /// # let mut ui = &mut egui::Ui::__test();
+    /// egui::ScrollArea::auto_sized().show(ui, |ui| {
+    ///     let scroll_bottom = ui.button("Scroll to bottom.").clicked;
+    ///     for i in 0..1000 {
+    ///         ui.label(format!("Item {}", i));
+    ///     }
+    ///
+    ///     if scroll_bottom {
+    ///         ui.scroll_to_cursor(Align::bottom());
+    ///     }
+    /// });
+    /// ```
+    pub fn scroll_to_cursor(&mut self, align: Align) {
+        let scroll_y = self.region.cursor.y;
+
+        self.ctx().frame_state().scroll_target = Some((scroll_y, align));
+    }
 }
 
 /// # Adding widgets
@@ -623,7 +669,11 @@ impl Ui {
     }
 
     /// Shortcut for `add(Label::new(text).text_color(color))`
-    pub fn colored_label(&mut self, color: impl Into<Srgba>, label: impl Into<Label>) -> Response {
+    pub fn colored_label(
+        &mut self,
+        color: impl Into<Color32>,
+        label: impl Into<Label>,
+    ) -> Response {
         self.add(label.into().text_color(color))
     }
 
@@ -782,23 +832,45 @@ impl Ui {
 impl Ui {
     /// Shows a button with the given color.
     /// If the user clicks the button, a full color picker is shown.
-    pub fn color_edit_button_srgba(&mut self, srgba: &mut Srgba) -> Response {
-        widgets::color_picker::color_edit_button_srgba(self, srgba)
+    pub fn color_edit_button_srgba(&mut self, srgba: &mut Color32) -> Response {
+        color_picker::color_edit_button_srgba(self, srgba, color_picker::Alpha::BlendOrAdditive)
     }
 
     /// Shows a button with the given color.
     /// If the user clicks the button, a full color picker is shown.
     pub fn color_edit_button_hsva(&mut self, hsva: &mut Hsva) -> Response {
-        widgets::color_picker::color_edit_button_hsva(self, hsva)
+        color_picker::color_edit_button_hsva(self, hsva, color_picker::Alpha::BlendOrAdditive)
+    }
+
+    /// Shows a button with the given color.
+    /// If the user clicks the button, a full color picker is shown.
+    /// The given color is in `sRGB` space.
+    pub fn color_edit_button_srgb(&mut self, srgb: &mut [u8; 3]) -> Response {
+        let mut hsva = Hsva::from_srgb(*srgb);
+        let response =
+            color_picker::color_edit_button_hsva(self, &mut hsva, color_picker::Alpha::Opaque);
+        *srgb = hsva.to_srgb();
+        response
+    }
+
+    /// Shows a button with the given color.
+    /// If the user clicks the button, a full color picker is shown.
+    /// The given color is in linear RGB space.
+    pub fn color_edit_button_rgb(&mut self, rgb: &mut [f32; 3]) -> Response {
+        let mut hsva = Hsva::from_rgb(*rgb);
+        let response =
+            color_picker::color_edit_button_hsva(self, &mut hsva, color_picker::Alpha::Opaque);
+        *rgb = hsva.to_rgb();
+        response
     }
 
     /// Shows a button with the given color.
     /// If the user clicks the button, a full color picker is shown.
     /// The given color is in `sRGBA` space with premultiplied alpha
     pub fn color_edit_button_srgba_premultiplied(&mut self, srgba: &mut [u8; 4]) -> Response {
-        let mut color = Srgba(*srgba);
+        let mut color = Color32::from_rgba_premultiplied(srgba[0], srgba[1], srgba[2], srgba[3]);
         let response = self.color_edit_button_srgba(&mut color);
-        *srgba = color.0;
+        *srgba = color.to_array();
         response
     }
 
@@ -808,7 +880,8 @@ impl Ui {
     /// If unsure, what "premultiplied alpha" is, then this is probably the function you want to use.
     pub fn color_edit_button_srgba_unmultiplied(&mut self, srgba: &mut [u8; 4]) -> Response {
         let mut hsva = Hsva::from_srgba_unmultiplied(*srgba);
-        let response = self.color_edit_button_hsva(&mut hsva);
+        let response =
+            color_picker::color_edit_button_hsva(self, &mut hsva, color_picker::Alpha::OnlyBlend);
         *srgba = hsva.to_srgba_unmultiplied();
         response
     }
@@ -818,7 +891,11 @@ impl Ui {
     /// The given color is in linear RGBA space with premultiplied alpha
     pub fn color_edit_button_rgba_premultiplied(&mut self, rgba: &mut [f32; 4]) -> Response {
         let mut hsva = Hsva::from_rgba_premultiplied(*rgba);
-        let response = self.color_edit_button_hsva(&mut hsva);
+        let response = color_picker::color_edit_button_hsva(
+            self,
+            &mut hsva,
+            color_picker::Alpha::BlendOrAdditive,
+        );
         *rgba = hsva.to_rgba_premultiplied();
         response
     }
@@ -829,7 +906,8 @@ impl Ui {
     /// If unsure, what "premultiplied alpha" is, then this is probably the function you want to use.
     pub fn color_edit_button_rgba_unmultiplied(&mut self, rgba: &mut [f32; 4]) -> Response {
         let mut hsva = Hsva::from_rgba_unmultiplied(*rgba);
-        let response = self.color_edit_button_hsva(&mut hsva);
+        let response =
+            color_picker::color_edit_button_hsva(self, &mut hsva, color_picker::Alpha::OnlyBlend);
         *rgba = hsva.to_rgba_unmultiplied();
         response
     }
@@ -847,7 +925,7 @@ impl Ui {
         (ret, response)
     }
 
-    /// Redirect paint commands to another paint layer.
+    /// Redirect shapes to another paint layer.
     pub fn with_layer_id<R>(
         &mut self,
         layer_id: LayerId,

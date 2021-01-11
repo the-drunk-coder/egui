@@ -1,11 +1,11 @@
-use crate::{math::Rect, CtxRef, Id, LayerId, Ui};
+use crate::{lerp, math::Rect, Align, CtxRef, Id, LayerId, Ui};
 
 // ----------------------------------------------------------------------------
 
 /// What Egui emits each frame.
 /// The backend should use this.
 #[derive(Clone, Default)]
-// #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+// #[cfg_attr(feature = "persistence", derive(serde::Serialize))]
 pub struct Output {
     /// Set the cursor to this icon.
     pub cursor_icon: CursorIcon,
@@ -26,8 +26,8 @@ pub struct Output {
 ///
 /// Egui emits a `CursorIcond` in [`Output`] each frame as a request to the integration.
 #[derive(Clone, Copy)]
-// #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-// #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+// #[cfg_attr(feature = "persistence", derive(serde::Serialize))]
+// #[cfg_attr(feature = "persistence", serde(rename_all = "snake_case"))]
 pub enum CursorIcon {
     Default,
     /// Pointing hand, used for e.g. web links
@@ -139,7 +139,7 @@ impl Response {
     /// Show this UI if the item was hovered (i.e. a tooltip).
     /// If you call this multiple times the tooltips will stack underneath the previous ones.
     pub fn on_hover_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
-        if self.hovered {
+        if self.hovered || self.ctx.memory().everything_is_visible() {
             crate::containers::show_tooltip(&self.ctx, add_contents);
         }
         self
@@ -170,6 +170,25 @@ impl Response {
     pub fn interact(&self, sense: Sense) -> Self {
         self.ctx
             .interact_with_hovered(self.layer_id, self.id, self.rect, sense, self.hovered)
+    }
+
+    /// Move the scroll to this UI with the specified alignment.
+    ///
+    /// ```
+    /// # use egui::Align;
+    /// # let mut ui = &mut egui::Ui::__test();
+    /// egui::ScrollArea::auto_sized().show(ui, |ui| {
+    ///     for i in 0..1000 {
+    ///         let response = ui.button(format!("Button {}", i));
+    ///         if response.clicked {
+    ///             response.scroll_to_me(Align::Center);
+    ///         }
+    ///     }
+    /// });
+    /// ```
+    pub fn scroll_to_me(&self, align: Align) {
+        let scroll_target = lerp(self.rect.y_range(), align.to_factor());
+        self.ctx.frame_state().scroll_target = Some((scroll_target, align));
     }
 }
 
@@ -235,7 +254,7 @@ impl std::ops::BitOrAssign for Response {
 
 /// What sort of interaction is a widget sensitive to?
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-// #[cfg_attr(feature = "serde", derive(serde::Serialize))]
+// #[cfg_attr(feature = "persistence", derive(serde::Serialize))]
 pub struct Sense {
     /// buttons, sliders, windows ...
     pub click: bool,

@@ -1,11 +1,21 @@
+//! [`egui`] bindings for [`glium`](https://github.com/glium/glium).
+//!
+//! This library is an [`epi`] backend.
+//!
+//! If you are writing an app, you may want to look at [`eframe`](https://docs.rs/eframe) instead.
+
 #![forbid(unsafe_code)]
 #![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
-#![warn(clippy::all)]
-#![allow(clippy::single_match)]
+#![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains, clippy::single_match)]
 
 mod backend;
+#[cfg(feature = "http")]
+pub mod http;
 mod painter;
-pub mod storage;
+#[cfg(feature = "persistence")]
+pub mod persistence;
+pub mod window_settings;
 
 pub use backend::*;
 pub use painter::Painter;
@@ -19,7 +29,7 @@ use {
 pub use clipboard::ClipboardContext; // TODO: remove
 
 pub struct GliumInputState {
-    raw: egui::RawInput,
+    pub raw: egui::RawInput,
 }
 
 impl GliumInputState {
@@ -34,7 +44,7 @@ impl GliumInputState {
 }
 
 pub fn input_to_egui(
-    event: glutin::event::WindowEvent,
+    event: glutin::event::WindowEvent<'_>,
     clipboard: Option<&mut ClipboardContext>,
     input_state: &mut GliumInputState,
     control_flow: &mut ControlFlow,
@@ -168,26 +178,60 @@ pub fn translate_virtual_key_code(key: VirtualKeyCode) -> Option<egui::Key> {
     use VirtualKeyCode::*;
         
     Some(match key {
-        Escape => Key::Escape,
-        Insert => Key::Insert,
-        Home => Key::Home,
-        Delete => Key::Delete,
-        End => Key::End,
-        PageDown => Key::PageDown,
-        PageUp => Key::PageUp,
-        Left => Key::ArrowLeft,
-        Up => Key::ArrowUp,
-        Right => Key::ArrowRight,
         Down => Key::ArrowDown,
+        Left => Key::ArrowLeft,
+        Right => Key::ArrowRight,
+        Up => Key::ArrowUp,
+
+        Escape => Key::Escape,
+        Tab => Key::Tab,
         Back => Key::Backspace,
         Return => Key::Enter,
-        Tab => Key::Tab,
         Space => Key::Space,
 
+        Insert => Key::Insert,
+        Delete => Key::Delete,
+        Home => Key::Home,
+        End => Key::End,
+        PageUp => Key::PageUp,
+        PageDown => Key::PageDown,
+
+        Key0 | Numpad0 => Key::Num0,
+        Key1 | Numpad1 => Key::Num1,
+        Key2 | Numpad2 => Key::Num2,
+        Key3 | Numpad3 => Key::Num3,
+        Key4 | Numpad4 => Key::Num4,
+        Key5 | Numpad5 => Key::Num5,
+        Key6 | Numpad6 => Key::Num6,
+        Key7 | Numpad7 => Key::Num7,
+        Key8 | Numpad8 => Key::Num8,
+        Key9 | Numpad9 => Key::Num9,
+
         A => Key::A,
+        B => Key::B,
+        C => Key::C,
+        D => Key::D,
+        E => Key::E,
+        F => Key::F,
+        G => Key::G,
+        H => Key::H,
+        I => Key::I,
+        J => Key::J,
         K => Key::K,
+        L => Key::L,
+        M => Key::M,
+        N => Key::N,
+        O => Key::O,
+        P => Key::P,
+        Q => Key::Q,
+        R => Key::R,
+        S => Key::S,
+        T => Key::T,
         U => Key::U,
+        V => Key::V,
         W => Key::W,
+        X => Key::X,
+        Y => Key::Y,
         Z => Key::Z,
 
         _ => {
@@ -248,10 +292,17 @@ pub fn init_clipboard() -> Option<ClipboardContext> {
 // ----------------------------------------------------------------------------
 
 /// Time of day as seconds since midnight. Used for clock in demo app.
-pub fn seconds_since_midnight() -> f64 {
-    use chrono::Timelike;
-    let time = chrono::Local::now().time();
-    time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64)
+pub fn seconds_since_midnight() -> Option<f64> {
+    #[cfg(feature = "time")]
+    {
+        use chrono::Timelike;
+        let time = chrono::Local::now().time();
+        let seconds_since_midnight =
+            time.num_seconds_from_midnight() as f64 + 1e-9 * (time.nanosecond() as f64);
+        Some(seconds_since_midnight)
+    }
+    #[cfg(not(feature = "time"))]
+    None
 }
 
 pub fn screen_size_in_pixels(display: &glium::Display) -> Vec2 {

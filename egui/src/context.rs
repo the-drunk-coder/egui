@@ -1,3 +1,5 @@
+// #![warn(missing_docs)]
+
 use std::sync::{
     atomic::{AtomicU32, Ordering::SeqCst},
     Arc,
@@ -6,27 +8,20 @@ use std::sync::{
 use crate::{
     animation_manager::AnimationManager,
     mutex::{Mutex, MutexGuard},
-    paint::{stats::*, *},
+    paint::{stats::*, text::Fonts, *},
     *,
 };
 
 // ----------------------------------------------------------------------------
 
-#[derive(Clone, Debug, Default)]
-struct Options {
-    /// The default style for new `Ui`:s.
-    style: Arc<Style>,
-    /// Controls the tessellator.
-    tesselation_options: paint::TesselationOptions,
-    /// Font sizes etc.
-    font_definitions: FontDefinitions,
-}
-
-// ----------------------------------------------------------------------------
-
-/// State that is collected during a frame and then cleared
+/// State that is collected during a frame and then cleared.
+/// Short-term (single frame) memory.
 #[derive(Clone)]
 pub(crate) struct FrameState {
+    /// All `Id`s that were used this frame.
+    /// Used to debug `Id` clashes of widgets.
+    pub(crate) used_ids: ahash::AHashMap<Id, Pos2>,
+
     /// Starts off as the screen_rect, shrinks as panels are added.
     /// The `CentralPanel` does not change this.
     /// This is the area available to Window's.
@@ -38,24 +33,50 @@ pub(crate) struct FrameState {
 
     /// How much space is used by panels.
     used_by_panels: Rect,
-    // TODO: move some things from `Memory` to here
+
+    /// If a tooltip has been shown this frame, where was it?
+    /// This is used to prevent multiple tooltips to cover each other.
+    /// Initialized to `None` at the start of each frame.
+    pub(crate) tooltip_rect: Option<Rect>,
+
+    /// Cleared by the first `ScrollArea` that makes use of it.
+    pub(crate) scroll_delta: Vec2,
+    pub(crate) scroll_target: Option<(f32, Align)>,
 }
 
 impl Default for FrameState {
     fn default() -> Self {
         Self {
+            used_ids: Default::default(),
             available_rect: Rect::invalid(),
             unused_rect: Rect::invalid(),
             used_by_panels: Rect::invalid(),
+            tooltip_rect: None,
+            scroll_delta: Vec2::zero(),
+            scroll_target: None,
         }
     }
 }
 
 impl FrameState {
-    pub fn begin_frame(&mut self, input: &InputState) {
-        self.available_rect = input.screen_rect();
-        self.unused_rect = input.screen_rect();
-        self.used_by_panels = Rect::nothing();
+    fn begin_frame(&mut self, input: &InputState) {
+        let Self {
+            used_ids,
+            available_rect,
+            unused_rect,
+            used_by_panels,
+            tooltip_rect,
+            scroll_delta,
+            scroll_target,
+        } = self;
+
+        used_ids.clear();
+        *available_rect = input.screen_rect();
+        *unused_rect = input.screen_rect();
+        *used_by_panels = Rect::nothing();
+        *tooltip_rect = None;
+        *scroll_delta = input.scroll_delta;
+        *scroll_target = None;
     }
 
     /// How much space is still available after panels has been added.
@@ -72,8 +93,8 @@ impl FrameState {
     /// Shrink `available_rect`.
     pub(crate) fn allocate_left_panel(&mut self, panel_rect: Rect) {
         debug_assert!(
-            panel_rect.min == self.available_rect.min,
-            "Mismatching panels. You must not create a panel from within another panel."
+            panel_rect.min.distance(self.available_rect.min) < 0.1,
+            "Mismatching left panel. You must not create a panel from within another panel."
         );
         self.available_rect.min.x = panel_rect.max.x;
         self.unused_rect.min.x = panel_rect.max.x;
@@ -83,8 +104,8 @@ impl FrameState {
     /// Shrink `available_rect`.
     pub(crate) fn allocate_top_panel(&mut self, panel_rect: Rect) {
         debug_assert!(
-            panel_rect.min == self.available_rect.min,
-            "Mismatching panels. You must not create a panel from within another panel."
+            panel_rect.min.distance(self.available_rect.min) < 0.1,
+            "Mismatching top panel. You must not create a panel from within another panel."
         );
         self.available_rect.min.y = panel_rect.max.y;
         self.unused_rect.min.y = panel_rect.max.y;
@@ -157,7 +178,7 @@ impl CtxRef {
     /// If the given [`Id`] is not unique, an error will be printed at the given position.
     /// Call this for [`Id`]:s that need interaction or persistence.
     pub(crate) fn register_interaction_id(&self, id: Id, new_pos: Pos2) {
-        let prev_pos = self.memory().used_ids.insert(id, new_pos);
+        let prev_pos = self.frame_state().used_ids.insert(id, new_pos);
         if let Some(prev_pos) = prev_pos {
             if prev_pos.distance(new_pos) < 0.1 {
                 // Likely same Widget being interacted with twice, which is fine.
@@ -354,11 +375,10 @@ impl CtxRef {
 
 /// This is the first thing you need when working with Egui. Create using [`CtxRef`].
 ///
-/// Contains the [`InputState`], [`Memory`], [`Output`], options and more.
+/// Contains the [`InputState`], [`Memory`], [`Output`], and more.
 // TODO: too many mutexes. Maybe put it all behind one Mutex instead.
 #[derive(Default)]
 pub struct Context {
-    options: Mutex<Options>,
     /// None until first call to `begin_frame`.
     fonts: Option<Arc<Fonts>>,
     memory: Arc<Mutex<Memory>>,
@@ -382,7 +402,6 @@ pub struct Context {
 impl Clone for Context {
     fn clone(&self) -> Self {
         Context {
-            options: self.options.clone(),
             fonts: self.fonts.clone(),
             memory: self.memory.clone(),
             animation_manager: self.animation_manager.clone(),
@@ -458,17 +477,17 @@ impl Context {
     /// Will become active at the start of the next frame.
     /// `pixels_per_point` will be ignored (overwritten at start of each frame with the contents of input)
     pub fn set_fonts(&self, font_definitions: FontDefinitions) {
-        self.options.lock().font_definitions = font_definitions;
+        self.memory().options.font_definitions = font_definitions;
     }
 
     /// The [`Style`] used by all new windows, panels etc.
     pub fn style(&self) -> Arc<Style> {
-        self.options.lock().style.clone()
+        self.memory().options.style.clone()
     }
 
     /// The [`Style`] used by all new windows, panels etc.
     pub fn set_style(&self, style: impl Into<Arc<Style>>) {
-        self.options.lock().style = style.into();
+        self.memory().options.style = style.into();
     }
 
     /// The number of physical pixels for each logical point.
@@ -543,7 +562,7 @@ impl Context {
         self.input = std::mem::take(&mut self.input).begin_frame(new_raw_input);
         self.frame_state.lock().begin_frame(&self.input);
 
-        let font_definitions = self.options.lock().font_definitions.clone();
+        let font_definitions = self.memory().options.font_definitions.clone();
         let pixels_per_point = self.input.pixels_per_point();
         let same_as_current = match &self.fonts {
             None => false,
@@ -573,15 +592,15 @@ impl Context {
 
     /// Call at the end of each frame.
     /// Returns what has happened this frame (`Output`) as well as what you need to paint.
-    /// You can transform the returned paint commands into triangles with a call to
-    /// `Context::tesselate`.
+    /// You can transform the returned shapes into triangles with a call to
+    /// `Context::tessellate`.
     #[must_use]
-    pub fn end_frame(&self) -> (Output, Vec<(Rect, PaintCmd)>) {
+    pub fn end_frame(&self) -> (Output, Vec<(Rect, Shape)>) {
         if self.input.wants_repaint() {
             self.request_repaint();
         }
 
-        self.memory().end_frame();
+        self.memory().end_frame(&self.frame_state().used_ids);
 
         let mut output: Output = std::mem::take(&mut self.output());
         if self.repaint_requests.load(SeqCst) > 0 {
@@ -589,25 +608,21 @@ impl Context {
             output.needs_repaint = true;
         }
 
-        let paint_commands = self.drain_paint_lists();
-        (output, paint_commands)
+        let shapes = self.drain_paint_lists();
+        (output, shapes)
     }
 
-    fn drain_paint_lists(&self) -> Vec<(Rect, PaintCmd)> {
+    fn drain_paint_lists(&self) -> Vec<(Rect, Shape)> {
         let memory = self.memory();
         self.graphics().drain(memory.areas.order()).collect()
     }
 
-    /// Tesselate the given paint commands into triangle meshes.
-    pub fn tesselate(&self, paint_commands: Vec<(Rect, PaintCmd)>) -> PaintJobs {
-        let mut tesselation_options = self.options.lock().tesselation_options;
-        tesselation_options.aa_size = 1.0 / self.pixels_per_point();
-        let paint_stats = PaintStats::from_paint_commands(&paint_commands); // TODO: internal allocations
-        let paint_jobs = tessellator::tessellate_paint_commands(
-            paint_commands,
-            tesselation_options,
-            self.fonts(),
-        );
+    /// Tessellate the given shapes into triangle meshes.
+    pub fn tessellate(&self, shapes: Vec<(Rect, Shape)>) -> PaintJobs {
+        let mut tessellation_options = self.memory().options.tessellation_options;
+        tessellation_options.aa_size = 1.0 / self.pixels_per_point();
+        let paint_stats = PaintStats::from_shapes(&shapes); // TODO: internal allocations
+        let paint_jobs = tessellator::tessellate_shapes(shapes, tessellation_options, self.fonts());
         *self.paint_stats.lock() = paint_stats.with_paint_jobs(&paint_jobs);
         paint_jobs
     }
@@ -670,6 +685,12 @@ impl Context {
 
     // ---------------------------------------------------------------------
 
+    /// Move all the graphics at the given layer.
+    /// Can be used to implement drag-and-drop (see relevant demo).
+    pub fn translate_layer(&self, layer_id: LayerId, delta: Vec2) {
+        self.graphics().list(layer_id).translate(delta);
+    }
+
     pub fn layer_id_at(&self, pos: Pos2) -> Option<LayerId> {
         let resize_grab_radius_side = self.style().interaction.resize_grab_radius_side;
         self.memory().layer_id_at(pos, resize_grab_radius_side)
@@ -705,6 +726,11 @@ impl Context {
         }
         animated_value
     }
+
+    /// Clear memory of any animations.
+    pub fn clear_animations(&self) {
+        *self.animation_manager.lock() = Default::default();
+    }
 }
 
 impl Context {
@@ -729,9 +755,9 @@ impl Context {
         CollapsingHeader::new("✒ Painting")
             .default_open(true)
             .show(ui, |ui| {
-                let mut tesselation_options = self.options.lock().tesselation_options;
-                tesselation_options.ui(ui);
-                self.options.lock().tesselation_options = tesselation_options;
+                let mut tessellation_options = self.memory().options.tessellation_options;
+                tessellation_options.ui(ui);
+                self.memory().options.tessellation_options = tessellation_options;
             });
     }
 
@@ -796,7 +822,7 @@ impl Context {
                     {
                         ui.ctx()
                             .debug_painter()
-                            .debug_rect(area.rect(), color::RED, "");
+                            .debug_rect(area.rect(), Color32::RED, "");
                     }
                 }
             }
@@ -843,24 +869,5 @@ impl Context {
         let mut style: Style = (*self.style()).clone();
         style.ui(ui);
         self.set_style(style);
-    }
-}
-
-impl paint::TesselationOptions {
-    pub fn ui(&mut self, ui: &mut Ui) {
-        let Self {
-            aa_size: _,
-            anti_alias,
-            coarse_tessellation_culling,
-            debug_paint_clip_rects,
-            debug_ignore_clip_rects,
-        } = self;
-        ui.checkbox(anti_alias, "Antialias");
-        ui.checkbox(
-            coarse_tessellation_culling,
-            "Do coarse culling in the tessellator",
-        );
-        ui.checkbox(debug_paint_clip_rects, "Paint clip rectangles (debug)");
-        ui.checkbox(debug_ignore_clip_rects, "Ignore clip rectangles (debug)");
     }
 }

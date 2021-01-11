@@ -15,7 +15,7 @@
 //! }
 //! ```
 
-use crate::{color::TRANSPARENT, paint::Stroke, widgets::*, *};
+use crate::{paint::Stroke, widgets::*, *};
 
 /// What is saved between frames.
 #[derive(Clone, Copy, Debug, Default)]
@@ -44,11 +44,11 @@ pub fn bar<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Respo
     ui.horizontal(|ui| {
         let mut style = ui.style().clone();
         style.spacing.button_padding = vec2(2.0, 0.0);
-        // style.visuals.widgets.active.bg_fill = TRANSPARENT;
+        // style.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
         style.visuals.widgets.active.bg_stroke = Stroke::none();
-        // style.visuals.widgets.hovered.bg_fill = TRANSPARENT;
+        // style.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
         style.visuals.widgets.hovered.bg_stroke = Stroke::none();
-        style.visuals.widgets.inactive.bg_fill = TRANSPARENT;
+        style.visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
         style.visuals.widgets.inactive.bg_stroke = Stroke::none();
         ui.set_style(style);
 
@@ -94,7 +94,7 @@ fn menu_impl<'c>(
         bar_state.open_menu = Some(menu_id);
     }
 
-    if bar_state.open_menu == Some(menu_id) || ui.memory().all_menus_are_open {
+    if bar_state.open_menu == Some(menu_id) || ui.ctx().memory().everything_is_visible() {
         let area = Area::new(menu_id)
             .order(Order::Foreground)
             .fixed_pos(button_response.rect.left_bottom());
@@ -104,11 +104,11 @@ fn menu_impl<'c>(
             frame.show(ui, |ui| {
                 let mut style = ui.style().clone();
                 style.spacing.button_padding = vec2(2.0, 0.0);
-                // style.visuals.widgets.active.bg_fill = TRANSPARENT;
+                // style.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
                 style.visuals.widgets.active.bg_stroke = Stroke::none();
-                // style.visuals.widgets.hovered.bg_fill = TRANSPARENT;
+                // style.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
                 style.visuals.widgets.hovered.bg_stroke = Stroke::none();
-                style.visuals.widgets.inactive.bg_fill = TRANSPARENT;
+                style.visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
                 style.visuals.widgets.inactive.bg_stroke = Stroke::none();
                 ui.set_style(style);
                 ui.with_layout(Layout::top_down_justified(Align::left()), add_contents);
