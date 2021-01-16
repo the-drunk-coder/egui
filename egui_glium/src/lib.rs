@@ -127,11 +127,11 @@ pub fn input_to_egui(
 
                     // VirtualKeyCode::Paste etc in winit are broken/untrustworthy,
                     // so we detect these things manually:
-                    if input_state.raw.modifiers.command && keycode == VirtualKeyCode::X {
+                    if input_state.raw.modifiers.command && (keycode == VirtualKeyCode::X || keycode == VirtualKeyCode::W)  {
                         input_state.raw.events.push(Event::Cut);
                     } else if input_state.raw.modifiers.command && keycode == VirtualKeyCode::C {
                         input_state.raw.events.push(Event::Copy);
-                    } else if input_state.raw.modifiers.command && keycode == VirtualKeyCode::V {
+                    } else if input_state.raw.modifiers.command && (keycode == VirtualKeyCode::V || keycode == VirtualKeyCode::Y) {
                         if let Some(clipboard) = clipboard {
                             match clipboard.get_contents() {
                                 Ok(contents) => {

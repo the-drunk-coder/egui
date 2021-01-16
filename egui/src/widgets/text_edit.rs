@@ -762,26 +762,26 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             for event in &ui.input().events {
 		let did_mutate_text = match event {
                     Event::Copy => {
-                        if cursorp.is_empty() {
-                            ui.ctx().output().copied_text = text.clone();
-                        } else {
-                            ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
-                        }
 			// clear selection
 			selection_toggle.store(false, Ordering::SeqCst);
+
+			// don't copy empty text
+			if !cursorp.is_empty() {                            
+                            ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
+                        }
+			
                         None
                     }
                     Event::Cut => {
 			// clear selection
 			selection_toggle.store(false, Ordering::SeqCst);
 			
-			if cursorp.is_empty() {
-                            ui.ctx().output().copied_text = std::mem::take(text);
-                            Some(CCursorPair::default())
-                        } else {
+			if !cursorp.is_empty() {
                             ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
                             Some(CCursorPair::one(delete_selected(text, &cursorp)))
-                        }			
+                        } else {
+			    None
+			}
                     }
                     Event::Text(text_to_insert) => {
 			// clear selection
@@ -1283,16 +1283,7 @@ fn on_key_press(
             let ccursor = delete_paragraph_before_cursor(text, galley, cursorp);
             Some(CCursorPair::one(ccursor))
         }
-
-        Key::W if modifiers.ctrl => {
-            let ccursor = if let Some(cursor) = cursorp.single() {
-                delete_previous_word(text, cursor.ccursor)
-            } else {
-                delete_selected(text, cursorp)
-            };
-            Some(CCursorPair::one(ccursor))
-        }
-
+        
         Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
             move_single_cursor(&mut cursorp.primary, galley, key, modifiers, false);
             if !modifiers.shift {
