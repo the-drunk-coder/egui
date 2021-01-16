@@ -286,6 +286,7 @@ pub enum Key {
     
     LParen, // needed for my lisp-y editor ...
     RParen,
+    DoubleQuote,
     
     /// Either from the main row or from the numpad.
     Num0,
