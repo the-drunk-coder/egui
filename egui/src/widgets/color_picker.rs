@@ -22,7 +22,7 @@ fn background_checkers(painter: &Painter, rect: Rect) {
     let rect = rect.shrink(0.5); // Small hack to avoid the checkers from peeking through the sides
 
     let mut top_color = Color32::from_gray(128);
-    let mut bottom_color = Color32::from_gray(32);
+    let mut bottom_color = Color32::BLACK;
     let checker_size = Vec2::splat(rect.height() / 2.0);
     let n = (rect.width() / checker_size.x).round() as u32;
 

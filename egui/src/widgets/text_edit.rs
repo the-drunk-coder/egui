@@ -678,7 +678,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             Sense::hover()
         };
         let response = ui.interact(rect, id, sense);
-
+	
         if enabled {
             ui.memory().interested_in_kb_focus(id);
         }
@@ -757,8 +757,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             // so that the undoer creates automatic saves even when there are no events for a while.
             state
                 .undoer
-                .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));
-
+                .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));	    
+	    
             for event in &ui.input().events {
 		let did_mutate_text = match event {
                     Event::Copy => {
@@ -917,7 +917,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowLeft, modifiers);
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowLeft, modifiers, false);
 			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
 			    cursorp.secondary = cursorp.primary;
 			}
@@ -928,9 +928,22 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers);
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers, false);
 			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
 			    cursorp.secondary = cursorp.primary;
+			}
+			None
+		    }
+		    Event::Key {
+                        key: Key::F,
+                        pressed: true,
+                        modifiers,
+                    } => {
+			if modifiers.ctrl {			    
+			    move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers, true);
+			    if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+				cursorp.secondary = cursorp.primary;
+			    }
 			}
 			None
 		    }
@@ -939,7 +952,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowUp, modifiers);
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowUp, modifiers, false);
 			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
 			    cursorp.secondary = cursorp.primary;
 			}
@@ -950,7 +963,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowDown, modifiers);
+			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowDown, modifiers, false);
 			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
 			    cursorp.secondary = cursorp.primary;
 			}
@@ -961,7 +974,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::Home, modifiers);
+			move_single_cursor(&mut cursorp.primary, &galley, Key::Home, modifiers, false);
 			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
 			    cursorp.secondary = cursorp.primary;
 			}
@@ -972,7 +985,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::End, modifiers);
+			move_single_cursor(&mut cursorp.primary, &galley, Key::End, modifiers, false);
 			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
 			    cursorp.secondary = cursorp.primary;
 			}
@@ -1281,7 +1294,7 @@ fn on_key_press(
         }
 
         Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
-            move_single_cursor(&mut cursorp.primary, galley, key, modifiers);
+            move_single_cursor(&mut cursorp.primary, galley, key, modifiers, false);
             if !modifiers.shift {
                 cursorp.secondary = cursorp.primary;
             }
@@ -1292,7 +1305,7 @@ fn on_key_press(
     }
 }
 
-fn move_single_cursor(cursor: &mut Cursor, galley: &Galley, key: Key, modifiers: &Modifiers) {
+fn move_single_cursor(cursor: &mut Cursor, galley: &Galley, key: Key, modifiers: &Modifiers, clear_modifiers: bool) {
     match key {
         Key::ArrowLeft => {
             if modifiers.alt || modifiers.ctrl {
@@ -1305,10 +1318,10 @@ fn move_single_cursor(cursor: &mut Cursor, galley: &Galley, key: Key, modifiers:
             }
         }
         Key::ArrowRight => {
-            if modifiers.alt || modifiers.ctrl {
+            if !clear_modifiers && (modifiers.alt || modifiers.ctrl) {
                 // alt on mac, ctrl on windows
                 *cursor = galley.from_ccursor(ccursor_next_word(&galley.text, cursor.ccursor));
-            } else if modifiers.mac_cmd {
+            } else if !clear_modifiers && modifiers.mac_cmd {
                 *cursor = galley.cursor_end_of_row(cursor);
             } else {
                 *cursor = galley.cursor_right_one_character(cursor);

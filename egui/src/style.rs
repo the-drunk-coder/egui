@@ -281,7 +281,7 @@ impl Default for Visuals {
             override_text_color: None,
             widgets: Default::default(),
             selection: Default::default(),
-            dark_bg_color: Color32::from_gray(10),
+            dark_bg_color: Color32::from_rgb(0, 0, 0),
             hyperlink_color: Color32::from_rgb(90, 170, 255),
             window_corner_radius: 10.0,
             window_shadow: Shadow::big(),
@@ -312,14 +312,14 @@ impl Default for Widgets {
         Self {
             noninteractive: WidgetVisuals {
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(65)), // window outline
-                bg_fill: Color32::from_gray(30),                     // window background
+                bg_fill: Color32::BLACK,                     // window background
                 corner_radius: 4.0,
 
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(160)), // text color
                 expansion: 0.0,
             },
             disabled: WidgetVisuals {
-                bg_fill: Color32::from_gray(40), // Should look grayed out
+                bg_fill: Color32::BLACK, // Should look grayed out
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(70)),
                 corner_radius: 4.0,
 
@@ -327,7 +327,7 @@ impl Default for Widgets {
                 expansion: 0.0,
             },
             inactive: WidgetVisuals {
-                bg_fill: Color32::from_gray(70),
+                bg_fill: Color32::BLACK,
                 bg_stroke: Default::default(),
                 corner_radius: 4.0,
 
@@ -335,7 +335,7 @@ impl Default for Widgets {
                 expansion: 0.0,
             },
             hovered: WidgetVisuals {
-                bg_fill: Color32::from_gray(80),
+                bg_fill: Color32::BLACK,
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(150)), // e.g. hover over window edge or button
                 corner_radius: 4.0,
 
@@ -343,7 +343,7 @@ impl Default for Widgets {
                 expansion: 1.0,
             },
             active: WidgetVisuals {
-                bg_fill: Color32::from_gray(90),
+                bg_fill: Color32::BLACK,
                 bg_stroke: Stroke::new(1.0, Color32::WHITE),
                 corner_radius: 4.0,
 
