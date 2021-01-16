@@ -263,7 +263,7 @@ impl Prepared {
             let margin = animation_t * ui.style().spacing.item_spacing.x;
             let left = inner_rect.right() + margin;
             let right = outer_rect.right();
-            let corner_radius = (right - left) / 2.0;
+            let corner_radius:f32 = 0.5; // fix corner_radius
             let top = inner_rect.top();
             let bottom = inner_rect.bottom();
 
@@ -361,5 +361,5 @@ impl Prepared {
 }
 
 fn max_scroll_bar_width_with_margin(ui: &Ui) -> f32 {
-    ui.style().spacing.item_spacing.x + 16.0
+    ui.style().spacing.item_spacing.x + 12.0
 }

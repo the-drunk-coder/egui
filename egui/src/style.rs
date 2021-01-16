@@ -269,8 +269,8 @@ impl Default for Spacing {
 impl Default for Interaction {
     fn default() -> Self {
         Self {
-            resize_grab_radius_side: 5.0,
-            resize_grab_radius_corner: 10.0,
+            resize_grab_radius_side: 0.0,
+            resize_grab_radius_corner: 0.0,
         }
     }
 }
@@ -283,7 +283,7 @@ impl Default for Visuals {
             selection: Default::default(),
             dark_bg_color: Color32::from_rgb(0, 0, 0),
             hyperlink_color: Color32::from_rgb(90, 170, 255),
-            window_corner_radius: 10.0,
+            window_corner_radius: 0.0,
             window_shadow: Shadow::big(),
             resize_corner_size: 12.0,
             text_cursor_width: 2.0,
@@ -313,7 +313,7 @@ impl Default for Widgets {
             noninteractive: WidgetVisuals {
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(65)), // window outline
                 bg_fill: Color32::BLACK,                     // window background
-                corner_radius: 4.0,
+                corner_radius: 0.0,
 
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(160)), // text color
                 expansion: 0.0,
@@ -321,7 +321,7 @@ impl Default for Widgets {
             disabled: WidgetVisuals {
                 bg_fill: Color32::BLACK, // Should look grayed out
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(70)),
-                corner_radius: 4.0,
+                corner_radius: 0.0,
 
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(140)), // Should look grayed out
                 expansion: 0.0,
@@ -329,7 +329,7 @@ impl Default for Widgets {
             inactive: WidgetVisuals {
                 bg_fill: Color32::BLACK,
                 bg_stroke: Default::default(),
-                corner_radius: 4.0,
+                corner_radius: 0.0,
 
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(200)), // Should NOT look grayed out!
                 expansion: 0.0,
@@ -337,7 +337,7 @@ impl Default for Widgets {
             hovered: WidgetVisuals {
                 bg_fill: Color32::BLACK,
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(150)), // e.g. hover over window edge or button
-                corner_radius: 4.0,
+                corner_radius: 0.0,
 
                 fg_stroke: Stroke::new(1.5, Color32::from_gray(240)),
                 expansion: 1.0,
@@ -345,7 +345,7 @@ impl Default for Widgets {
             active: WidgetVisuals {
                 bg_fill: Color32::BLACK,
                 bg_stroke: Stroke::new(1.0, Color32::WHITE),
-                corner_radius: 4.0,
+                corner_radius: 0.0,
 
                 fg_stroke: Stroke::new(2.0, Color32::WHITE),
                 expansion: 2.0,
