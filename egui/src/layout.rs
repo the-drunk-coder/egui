@@ -357,9 +357,9 @@ impl Layout {
     }
 
     /// Returns where to put the next widget that is of the given size.
-    /// The returned "outer" `Rect` will always be justified along the cross axis.
-    /// This is what you then pass to `advance_after_outer_rect`.
-    /// Use `justify_or_align` to get the inner `Rect`.
+    /// The returned `frame_rect` `Rect` will always be justified along the cross axis.
+    /// This is what you then pass to `advance_after_rects`.
+    /// Use `justify_or_align` to get the inner `widget_rect`.
     #[allow(clippy::collapsible_if)]
     pub(crate) fn next_space(
         &self,
@@ -431,62 +431,70 @@ impl Layout {
     }
 
     /// Apply justify or alignment after calling `next_space`.
-    pub(crate) fn justify_or_align(&self, mut rect: Rect, child_size: Vec2) -> Rect {
-        if self.main_dir.is_horizontal() {
-            debug_assert!((rect.width() - child_size.x).abs() < 0.1);
-            if self.cross_justify {
-                rect // fill full height
+    pub(crate) fn justify_or_align(&self, rect: Rect, mut child_size: Vec2) -> Rect {
+        if self.cross_justify {
+            if self.main_dir.is_horizontal() {
+                child_size.y = rect.height(); // fill full height
             } else {
-                rect.min.y += match self.cross_align {
-                    Align::Min => 0.0,
-                    Align::Center => 0.5 * (rect.size().y - child_size.y),
-                    Align::Max => rect.size().y - child_size.y,
-                };
-                rect.max.y = rect.min.y + child_size.y;
-                rect
+                child_size.x = rect.width(); //  fill full width
             }
-        } else {
-            debug_assert!((rect.height() - child_size.y).abs() < 0.1);
-            if self.cross_justify {
-                rect // justified: fill full width
-            } else {
-                rect.min.x += match self.cross_align {
-                    Align::Min => 0.0,
-                    Align::Center => 0.5 * (rect.size().x - child_size.x),
-                    Align::Max => rect.size().x - child_size.x,
-                };
-                rect.max.x = rect.min.x + child_size.x;
-                rect
+        }
+
+        match self.main_dir {
+            Direction::LeftToRight => {
+                Align2([Align::Min, self.cross_align]).align_size_within_rect(child_size, rect)
+            }
+            Direction::RightToLeft => {
+                Align2([Align::Max, self.cross_align]).align_size_within_rect(child_size, rect)
+            }
+            Direction::TopDown => {
+                Align2([self.cross_align, Align::Min]).align_size_within_rect(child_size, rect)
+            }
+            Direction::BottomUp => {
+                Align2([self.cross_align, Align::Max]).align_size_within_rect(child_size, rect)
             }
         }
     }
 
     /// Advance the cursor by this many points.
-    pub(crate) fn advance_cursor(&self, region: &mut Region, amount: f32) {
+    pub(crate) fn advance_cursor(&self, cursor: &mut Pos2, amount: f32) {
         match self.main_dir {
-            Direction::LeftToRight => region.cursor.x += amount,
-            Direction::RightToLeft => region.cursor.x -= amount,
-            Direction::TopDown => region.cursor.y += amount,
-            Direction::BottomUp => region.cursor.y -= amount,
+            Direction::LeftToRight => cursor.x += amount,
+            Direction::RightToLeft => cursor.x -= amount,
+            Direction::TopDown => cursor.y += amount,
+            Direction::BottomUp => cursor.y -= amount,
         }
     }
 
     /// Advance cursor after a widget was added to a specific rectangle.
-    /// `outer_rect` is a hack needed because the Vec2 cursor is not quite sufficient to keep track
-    /// of what is happening when we are doing wrapping layouts.
-    pub(crate) fn advance_after_outer_rect(
+    ///
+    /// * `frame_rect`: the frame inside which a widget was e.g. centered
+    /// * `widget_rect`: the actual rect used by the widget
+    pub(crate) fn advance_after_rects(
         &self,
-        region: &mut Region,
-        outer_rect: Rect,
-        inner_rect: Rect,
+        cursor: &mut Pos2,
+        frame_rect: Rect,
+        widget_rect: Rect,
         item_spacing: Vec2,
     ) {
-        region.cursor = match self.main_dir {
-            Direction::LeftToRight => pos2(inner_rect.right() + item_spacing.x, outer_rect.top()),
-            Direction::RightToLeft => pos2(inner_rect.left() - item_spacing.x, outer_rect.top()),
-            Direction::TopDown => pos2(outer_rect.left(), inner_rect.bottom() + item_spacing.y),
-            Direction::BottomUp => pos2(outer_rect.left(), inner_rect.top() - item_spacing.y),
+        *cursor = match self.main_dir {
+            Direction::LeftToRight => pos2(widget_rect.right() + item_spacing.x, frame_rect.top()),
+            Direction::RightToLeft => pos2(widget_rect.left() - item_spacing.x, frame_rect.top()),
+            Direction::TopDown => pos2(frame_rect.left(), widget_rect.bottom() + item_spacing.y),
+            Direction::BottomUp => pos2(frame_rect.left(), widget_rect.top() - item_spacing.y),
         };
+    }
+
+    /// Move to the next row in a wrapping layout.
+    /// Otherwise does nothing.
+    pub(crate) fn end_row(&mut self, region: &mut Region, item_spacing: Vec2) {
+        if self.main_wrap && self.is_horizontal() {
+            // New row
+            region.cursor = pos2(
+                region.max_rect.left(),
+                region.max_rect.bottom() + item_spacing.y,
+            );
+        }
     }
 }
 
@@ -495,13 +503,15 @@ impl Layout {
 /// ## Debug stuff
 impl Layout {
     /// Shows where the next widget is going to be placed
-    pub(crate) fn debug_paint_cursor(&self, region: &Region, painter: &crate::Painter) {
+    pub(crate) fn debug_paint_cursor(
+        &self,
+        region: &Region,
+        stroke: epaint::Stroke,
+        painter: &crate::Painter,
+    ) {
         use crate::paint::*;
 
         let cursor = region.cursor;
-
-        let color = Color32::GREEN;
-        let stroke = Stroke::new(2.0, color);
 
         let align;
 
@@ -526,6 +536,6 @@ impl Layout {
             }
         }
 
-        painter.text(cursor, align, "cursor", TextStyle::Monospace, color);
+        painter.text(cursor, align, "cursor", TextStyle::Monospace, stroke.color);
     }
 }

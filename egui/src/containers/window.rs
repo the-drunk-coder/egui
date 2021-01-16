@@ -104,6 +104,13 @@ impl<'open> Window<'open> {
         self
     }
 
+    /// Set current position of the window.
+    /// If the window is movable it is up to you to keep track of where it moved to!
+    pub fn current_pos(mut self, current_pos: impl Into<Pos2>) -> Self {
+        self.area = self.area.current_pos(current_pos);
+        self
+    }
+
     /// Set initial position of the window.
     pub fn default_pos(mut self, default_pos: impl Into<Pos2>) -> Self {
         self.area = self.area.default_pos(default_pos);
@@ -196,6 +203,7 @@ impl<'open> Window<'open> {
 }
 
 impl<'open> Window<'open> {
+    /// Returns `None` if the windows is not open (if [`Window::open`] was called with `&mut false`.
     pub fn show(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui)) -> Option<Response> {
         self.show_impl(ctx, Box::new(add_contents))
     }
@@ -645,16 +653,20 @@ fn show_title_bar(
     collapsible: bool,
 ) -> TitleBar {
     let (title_bar, response) = ui.horizontal(|ui| {
-        let height = title_label.font_height(ui.fonts(), ui.style());
+        let height = title_label
+            .font_height(ui.fonts(), ui.style())
+            .max(ui.style().spacing.interact_size.y);
         ui.set_min_height(height);
 
         let item_spacing = ui.style().spacing.item_spacing;
-        let button_size = ui.style().spacing.icon_width;
+        let button_size = Vec2::splat(ui.style().spacing.icon_width);
+
+        let pad = (height - button_size.y) / 2.0; // calculated so that the icon is on the diagonal (if window padding is symmetrical)
 
         if collapsible {
-            ui.advance_cursor(ui.style().spacing.item_spacing.x);
+            ui.advance_cursor(pad);
 
-            let (_id, rect) = ui.allocate_space(Vec2::splat(button_size));
+            let (_id, rect) = ui.allocate_space(button_size);
             let collapse_button_response = ui.interact(rect, collapsing_id, Sense::click());
             if collapse_button_response.clicked {
                 collapsing.toggle(ui);
@@ -666,11 +678,10 @@ fn show_title_bar(
         let title_galley = title_label.layout(ui);
 
         let minimum_width = if collapsible || show_close_button {
-            // If at least one button is shown we make room for both buttons (since title is centered)
-            let space_x = item_spacing.x;
-            space_x + button_size + space_x + title_galley.size.x + space_x + button_size + space_x
+            // If at least one button is shown we make room for both buttons (since title is centered):
+            2.0 * (pad + button_size.x + item_spacing.x) + title_galley.size.x
         } else {
-            item_spacing.x + title_galley.size.x + item_spacing.x
+            pad + title_galley.size.x + pad
         };
         let min_rect = Rect::from_min_size(ui.min_rect().min, vec2(minimum_width, height));
         let id = ui.advance_cursor_after_rect(min_rect);
@@ -712,16 +723,15 @@ impl TitleBar {
             }
         }
 
-        let style = if ui.ui_contains_mouse() {
-            ui.style().visuals.widgets.hovered
-        } else {
-            ui.style().visuals.widgets.inactive
-        };
+        // Always have inactive style for the window.
+        // It is VERY annoying to e.g. change it when moving the window.
+        let style = ui.style().visuals.widgets.inactive;
+
         self.title_label = self.title_label.text_color(style.fg_stroke.color);
 
         let full_top_rect = Rect::from_x_y_ranges(self.rect.x_range(), self.min_rect.y_range());
         let text_pos = math::align::center_size_in_rect(self.title_galley.size, full_top_rect);
-        let text_pos = text_pos.left_top() - 2.0 * Vec2::Y; // HACK: center on x-height of text (looks better)
+        let text_pos = text_pos.left_top() - 1.5 * Vec2::Y; // HACK: center on x-height of text (looks better)
         self.title_label
             .paint_galley(ui, text_pos, self.title_galley);
 
@@ -733,7 +743,7 @@ impl TitleBar {
             // let y = lerp(self.rect.bottom()..=content_response.rect.top(), 0.5);
             ui.painter().line_segment(
                 [pos2(left, y), pos2(right, y)],
-                ui.style().visuals.widgets.inactive.bg_stroke,
+                ui.style().visuals.widgets.noninteractive.bg_stroke,
             );
         }
 
@@ -747,13 +757,14 @@ impl TitleBar {
     }
 
     fn close_button_ui(&self, ui: &mut Ui) -> Response {
-        let button_size = ui.style().spacing.icon_width;
+        let button_size = Vec2::splat(ui.style().spacing.icon_width);
+        let pad = (self.rect.height() - button_size.y) / 2.0; // calculated so that the icon is on the diagonal (if window padding is symmetrical)
         let button_rect = Rect::from_min_size(
             pos2(
-                self.rect.right() - ui.style().spacing.item_spacing.x - button_size,
-                self.rect.center().y - 0.5 * button_size,
+                self.rect.right() - pad - button_size.x,
+                self.rect.center().y - 0.5 * button_size.y,
             ),
-            Vec2::splat(button_size),
+            button_size,
         );
 
         close_button(ui, button_rect)
@@ -765,9 +776,9 @@ fn close_button(ui: &mut Ui, rect: Rect) -> Response {
     let response = ui.interact(rect, close_id, Sense::click());
     ui.expand_to_include_rect(response.rect);
 
-    let rect = rect.shrink(2.0);
-
-    let stroke = ui.style().interact(&response).fg_stroke;
+    let visuals = ui.style().interact(&response);
+    let rect = rect.shrink(2.0).expand(visuals.expansion);
+    let stroke = visuals.fg_stroke;
     ui.painter()
         .line_segment([rect.left_top(), rect.right_bottom()], stroke);
     ui.painter()

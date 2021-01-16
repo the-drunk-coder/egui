@@ -117,8 +117,12 @@ impl Widget for Button {
 
             if frame {
                 let fill = fill.unwrap_or(visuals.bg_fill);
-                ui.painter()
-                    .rect(rect, visuals.corner_radius, fill, visuals.bg_stroke);
+                ui.painter().rect(
+                    rect.expand(visuals.expansion),
+                    visuals.corner_radius,
+                    fill,
+                    visuals.bg_stroke,
+                );
             }
 
             let text_color = text_color
@@ -136,6 +140,7 @@ impl Widget for Button {
 
 // TODO: allow checkbox without a text label
 /// Boolean on/off control with text label.
+#[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 #[derive(Debug)]
 pub struct Checkbox<'a> {
     checked: &'a mut bool,
@@ -197,7 +202,7 @@ impl<'a> Widget for Checkbox<'a> {
         );
         let (small_icon_rect, big_icon_rect) = ui.style().spacing.icon_rectangles(rect);
         ui.painter().add(Shape::Rect {
-            rect: big_icon_rect,
+            rect: big_icon_rect.expand(visuals.expansion),
             corner_radius: visuals.corner_radius,
             fill: visuals.bg_fill,
             stroke: visuals.bg_stroke,
@@ -212,6 +217,7 @@ impl<'a> Widget for Checkbox<'a> {
                     pos2(small_icon_rect.right(), small_icon_rect.top()),
                 ],
                 visuals.fg_stroke,
+                // ui.style().visuals.selection.stroke, // too much color
             ));
         }
 
@@ -291,7 +297,7 @@ impl Widget for RadioButton {
 
         painter.add(Shape::Circle {
             center: big_icon_rect.center(),
-            radius: big_icon_rect.width() / 2.0,
+            radius: big_icon_rect.width() / 2.0 + visuals.expansion,
             fill: visuals.bg_fill,
             stroke: visuals.bg_stroke,
         });
@@ -301,9 +307,8 @@ impl Widget for RadioButton {
                 center: small_icon_rect.center(),
                 radius: small_icon_rect.width() / 3.0,
                 fill: visuals.fg_stroke.color, // Intentional to use stroke and not fill
+                // fill: ui.style().visuals.selection.stroke.color, // too much color
                 stroke: Default::default(),
-                // fill: visuals.fg_fill,
-                // stroke: visuals.fg_stroke,
             });
         }
 
@@ -328,9 +333,9 @@ pub struct ImageButton {
 }
 
 impl ImageButton {
-    pub fn new(texture_id: TextureId, desired_size: impl Into<Vec2>) -> Self {
+    pub fn new(texture_id: TextureId, size: impl Into<Vec2>) -> Self {
         Self {
-            image: widgets::Image::new(texture_id, desired_size),
+            image: widgets::Image::new(texture_id, size),
             sense: Sense::click(),
             frame: true,
             selected: false,
@@ -379,8 +384,8 @@ impl Widget for ImageButton {
         } = self;
 
         let button_padding = ui.style().spacing.button_padding;
-        let desired_size = image.desired_size() + 2.0 * button_padding;
-        let (rect, response) = ui.allocate_at_least(desired_size, sense);
+        let size = image.size() + 2.0 * button_padding;
+        let (rect, response) = ui.allocate_exact_size(size, sense);
 
         if ui.clip_rect().intersects(rect) {
             let visuals = ui.style().interact(&response);
@@ -391,7 +396,7 @@ impl Widget for ImageButton {
                     .rect(rect, 0.0, selection.bg_fill, selection.stroke);
             } else if frame {
                 ui.painter().rect(
-                    rect,
+                    rect.expand(visuals.expansion),
                     visuals.corner_radius,
                     visuals.bg_fill,
                     visuals.bg_stroke,
@@ -400,7 +405,7 @@ impl Widget for ImageButton {
 
             let image_rect = ui
                 .layout()
-                .align_size_within_rect(image.desired_size(), rect.shrink2(button_padding));
+                .align_size_within_rect(image.size(), rect.shrink2(button_padding));
             image.paint_at(ui, image_rect);
         }
 
