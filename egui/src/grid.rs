@@ -193,7 +193,7 @@ impl GridLayout {
 
 // ----------------------------------------------------------------------------
 
-/// A simple `Grid` layout.
+/// A simple grid layout.
 ///
 /// The contents of each cell be aligned to the left and center.
 /// If you want to add multiple widgets to a cell you need to group them with
@@ -209,6 +209,11 @@ impl GridLayout {
 ///     ui.label("Second row, first column");
 ///     ui.label("Second row, second column");
 ///     ui.label("Second row, third column");
+///     ui.end_row();
+///
+///     ui.horizontal(|ui| { ui.label("Same"); ui.label("cell"); });
+///     ui.label("Third row, second column");
+///     ui.end_row();
 /// });
 /// ```
 pub struct Grid {
@@ -220,6 +225,7 @@ pub struct Grid {
 }
 
 impl Grid {
+    /// Create a new [`Grid`] with a locally unique identifier.
     pub fn new(id_source: impl std::hash::Hash) -> Self {
         Self {
             id_source: Id::new(id_source),
@@ -239,20 +245,22 @@ impl Grid {
         self
     }
 
-    /// Set minimum width of each column. Default: [`Spacing::interact_size.x`].
+    /// Set minimum width of each column.
+    /// Default: [`crate::style::Spacing::interact_size`]`.x`.
     pub fn min_col_width(mut self, min_col_width: f32) -> Self {
         self.min_col_width = Some(min_col_width);
         self
     }
 
-    /// Set minimum height of each row. Default: [`Spacing::interact_size.y`].
+    /// Set minimum height of each row.
+    /// Default: [`crate::style::Spacing::interact_size`]`.y`.
     pub fn min_row_height(mut self, min_row_height: f32) -> Self {
         self.min_row_height = Some(min_row_height);
         self
     }
 
     /// Set spacing between columns/rows.
-    /// Default: [`Spacing::item_spacing`].
+    /// Default: [`crate::style::Spacing::item_spacing`].
     pub fn spacing(mut self, spacing: impl Into<Vec2>) -> Self {
         self.spacing = Some(spacing.into());
         self

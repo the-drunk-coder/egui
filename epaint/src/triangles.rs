@@ -24,12 +24,14 @@ pub struct Vertex {
 #[derive(Clone, Debug, Default)]
 pub struct Triangles {
     /// Draw as triangles (i.e. the length is always multiple of three).
+    ///
+    /// egui is NOT consistent with what winding order it uses, so turn off backface culling.
     pub indices: Vec<u32>,
 
     /// The vertex data indexed by `indices`.
     pub vertices: Vec<Vertex>,
 
-    /// The texture to use when drawing these triangles
+    /// The texture to use when drawing these triangles.
     pub texture_id: TextureId,
 }
 

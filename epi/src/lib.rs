@@ -2,7 +2,7 @@
 //!
 //! `epi` provides interfaces for window management, serialization and http requests.
 //! An app written for `epi` can then be plugged into [`eframe`](https://docs.rs/eframe),
-//! the Egui framework crate.
+//! the egui framework crate.
 //!
 //! Start by looking at the [`App`] trait, and implement [`App::update`].
 
@@ -160,7 +160,7 @@ impl<'a> Frame<'a> {
     }
 }
 
-/// Information about the web environment
+/// Information about the web environment (if applicable).
 #[derive(Clone, Debug)]
 pub struct WebInfo {
     /// e.g. "#fragment" part of "www.example.com/index.html#fragment".

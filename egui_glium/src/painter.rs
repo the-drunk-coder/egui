@@ -43,6 +43,7 @@ const VERTEX_SHADER_SOURCE: &str = r#"
             1.0 - 2.0 * a_pos.y / u_screen_size.y,
             0.0,
             1.0);
+        // egui encodes vertex colors in gamma spaces, so we must decode the colors here:
         v_rgba = linear_from_srgba(a_srgba);
         v_tc = a_tc;
     }
@@ -198,7 +199,7 @@ impl Painter {
         let height_in_points = height_in_pixels as f32 / pixels_per_point;
 
         if let Some(texture) = self.get_texture(triangles.texture_id) {
-            // The texture coordinates for text are so that both nearest and linear should work with the Egui font texture.
+            // The texture coordinates for text are so that both nearest and linear should work with the egui font texture.
             // For user textures linear sampling is more likely to be the right choice.
             let filter = MagnifySamplerFilter::Linear;
 
@@ -207,7 +208,7 @@ impl Painter {
                 u_sampler: texture.sampled().magnify_filter(filter).wrap_function(SamplerWrapFunction::Clamp),
             };
 
-            // Egui outputs colors with premultiplied alpha:
+            // egui outputs colors with premultiplied alpha:
             let color_blend_func = glium::BlendingFunction::Addition {
                 source: glium::LinearBlendingFactor::One,
                 destination: glium::LinearBlendingFactor::OneMinusSourceAlpha,
@@ -225,6 +226,9 @@ impl Painter {
                 alpha: alpha_blend_func,
                 ..Default::default()
             };
+
+            // egui outputs triangles in both winding orders:
+            let backface_culling = glium::BackfaceCullingMode::CullingDisabled;
 
             // Transform clip rect to physical pixels:
             let clip_min_x = pixels_per_point * clip_rect.min.x;
@@ -245,6 +249,7 @@ impl Painter {
 
             let params = glium::DrawParameters {
                 blend,
+                backface_culling,
                 scissor: Some(glium::Rect {
                     left: clip_min_x,
                     bottom: height_in_pixels - clip_max_y,
@@ -268,7 +273,7 @@ impl Painter {
 
     // ------------------------------------------------------------------------
     // user textures: this is an experimental feature.
-    // No need to implement this in your Egui integration!
+    // No need to implement this in your egui integration!
 
     pub fn alloc_user_texture(&mut self) -> egui::TextureId {
         for (i, tex) in self.user_textures.iter_mut().enumerate() {

@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 
+## 0.8.0 - 2021-01-17
+
+### Added ⭐
+
+* WebGL2 is now supported, with improved texture sampler. WebGL1 will be used as a fallback.
+
+### Changed
+
+* Slightly improved alpha-blending (work-around for non-existing linear-space blending).
+
+### Fixed ⭐
+
+* Call prevent_default for arrow keys when entering text
+
+
 ## 0.7.0 - 2021-01-04
 
 ### Changed

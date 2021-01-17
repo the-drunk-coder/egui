@@ -1,9 +1,9 @@
-//! Egui core library
+//! egui core library
 //!
-//! To quickly get started with Egui, you can take a look at [`egui_template`](https://github.com/emilk/egui_template)
+//! To quickly get started with egui, you can take a look at [`egui_template`](https://github.com/emilk/egui_template)
 //! which uses [`eframe`](https://docs.rs/eframe).
 //!
-//! To create a GUI using Egui you first need a [`CtxRef`] (by convention referred to by `ctx`).
+//! To create a GUI using egui you first need a [`CtxRef`] (by convention referred to by `ctx`).
 //! Use one of [`SidePanel`], [`TopPanel`], [`CentralPanel`], [`Window`] or [`Area`] to
 //! get access to an [`Ui`] where you can put widgets. For example:
 //!
@@ -16,7 +16,7 @@
 //! ```
 //!
 //!
-//! To write your own integration for Egui you need to do this:
+//! To write your own integration for egui you need to do this:
 //!
 //! ``` ignore
 //! let mut egui_ctx = egui::CtxRef::default();
@@ -81,18 +81,20 @@
 mod animation_manager;
 pub mod containers;
 mod context;
+mod data;
 pub(crate) mod grid;
 mod id;
-mod input;
+mod input_state;
 mod introspection;
-mod layers;
+pub mod layers;
 mod layout;
 mod memory;
 pub mod menu;
 mod painter;
 pub(crate) mod placer;
+mod response;
+mod sense;
 pub mod style;
-mod types;
 mod ui;
 pub mod util;
 pub mod widgets;
@@ -113,15 +115,17 @@ pub use epaint::{
 pub use {
     containers::*,
     context::{Context, CtxRef},
+    data::{input::*, output::*},
     grid::Grid,
     id::Id,
-    input::*,
-    layers::*,
+    input_state::InputState,
+    layers::{LayerId, Order},
     layout::*,
     memory::Memory,
     painter::Painter,
+    response::Response,
+    sense::Sense,
     style::Style,
-    types::*,
     ui::Ui,
     widgets::*,
 };
@@ -146,13 +150,13 @@ pub fn warn_if_debug_build(ui: &mut crate::Ui) {
                 .small()
                 .text_color(crate::Color32::RED),
         )
-        .on_hover_text("Egui was compiled with debug assertions enabled.");
+        .on_hover_text("egui was compiled with debug assertions enabled.");
     }
 }
 
 // ----------------------------------------------------------------------------
 
-/// Create a [`Hyperlink`](crate::Hyperlink) to this file (and line) on Github
+/// Create a [`Hyperlink`](crate::Hyperlink) to the current [`file!()`] (and line) on Github
 ///
 /// Example: `ui.add(github_link_file_line!("https://github.com/YOUR/PROJECT/blob/master/", "(source code)"));`
 #[macro_export]
@@ -163,7 +167,7 @@ macro_rules! github_link_file_line {
     }};
 }
 
-/// Create a [`Hyperlink`](crate::Hyperlink) to this file on github.
+/// Create a [`Hyperlink`](crate::Hyperlink) to the current [`file!()`] on github.
 ///
 /// Example: `ui.add(github_link_file!("https://github.com/YOUR/PROJECT/blob/master/", "(source code)"));`
 #[macro_export]

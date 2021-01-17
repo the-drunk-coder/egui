@@ -47,7 +47,7 @@
 pub mod color;
 pub mod mutex;
 mod shadow;
-pub mod shape;
+mod shape;
 pub mod stats;
 mod stroke;
 pub mod tessellator;
@@ -61,7 +61,7 @@ pub use {
     shape::Shape,
     stats::PaintStats,
     stroke::Stroke,
-    tessellator::{PaintJob, PaintJobs, TessellationOptions},
+    tessellator::TessellationOptions,
     text::{Galley, TextStyle},
     texture_atlas::{Texture, TextureAtlas},
     triangles::{Triangles, Vertex},
@@ -71,7 +71,7 @@ pub use ahash;
 pub use emath;
 
 /// The UV coordinate of a white region of the texture mesh.
-/// The default Egui texture has the top-left corner pixel fully white.
+/// The default egui texture has the top-left corner pixel fully white.
 /// You need need use a clamping texture sampler for this to work
 /// (so it doesn't do bilinear blending with bottom right corner).
 pub const WHITE_UV: emath::Pos2 = emath::pos2(0.0, 0.0);
@@ -79,12 +79,12 @@ pub const WHITE_UV: emath::Pos2 = emath::pos2(0.0, 0.0);
 /// What texture to use in a [`Triangles`] mesh.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextureId {
-    /// The Egui font texture.
+    /// The egui font texture.
     /// If you don't want to use a texture, pick this and the [`WHITE_UV`] for uv-coord.
     Egui,
 
     /// Your own texture, defined in any which way you want.
-    /// Egui won't care. The backend renderer will presumably use this to look up what texture to use.
+    /// egui won't care. The backend renderer will presumably use this to look up what texture to use.
     User(u64),
 }
 
@@ -101,3 +101,21 @@ pub(crate) struct PaintRect {
     pub fill: Color32,
     pub stroke: Stroke,
 }
+
+/// A [`Shape`] within a clip rectangle.
+///
+/// Everything is using logical points.
+#[derive(Clone, Debug)]
+pub struct ClippedShape(
+    /// Clip / scissor rectangle.
+    /// Only show the part of the [`Shape`] that falls within this.
+    pub emath::Rect,
+    /// The shape
+    pub Shape,
+);
+
+/// A clip triangle and some textured triangles, all in points (logical pixels).
+pub type PaintJob = (emath::Rect, Triangles);
+
+/// Grouped by clip rectangles, in points (logical pixels).
+pub type PaintJobs = Vec<PaintJob>;

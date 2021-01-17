@@ -11,7 +11,7 @@ use crate::{
 
 // ----------------------------------------------------------------------------
 
-/// The data that Egui persists between frames.
+/// The data that egui persists between frames.
 ///
 /// This includes window positions and sizes,
 /// how far the user has scrolled in a `ScrollArea` etc.
@@ -65,6 +65,7 @@ pub struct Memory {
 #[cfg_attr(feature = "persistence", serde(default))]
 pub(crate) struct Options {
     /// The default style for new `Ui`:s.
+    #[cfg_attr(feature = "persistence", serde(skip))]
     pub(crate) style: std::sync::Arc<Style>,
     /// Controls the tessellator.
     pub(crate) tessellation_options: crate::paint::TessellationOptions,
@@ -151,8 +152,8 @@ impl Interaction {
         self.pressed_tab = false;
         self.pressed_shift_tab = false;
         for event in &new_input.events {
-            if let crate::input::Event::Key {
-                key: crate::input::Key::Tab,
+            if let crate::Event::Key {
+                key: crate::Key::Tab,
                 pressed: true,
                 modifiers,
             } = event
@@ -170,8 +171,8 @@ impl Interaction {
 impl Memory {
     pub(crate) fn begin_frame(
         &mut self,
-        prev_input: &crate::input::InputState,
-        new_input: &crate::input::RawInput,
+        prev_input: &crate::input_state::InputState,
+        new_input: &crate::data::input::RawInput,
     ) {
         self.interaction.begin_frame(prev_input, new_input);
 
@@ -381,7 +382,7 @@ impl Areas {
     pub(crate) fn visible_windows(&self) -> Vec<&area::State> {
         self.visible_layer_ids()
             .iter()
-            .filter(|layer| layer.order == crate::layers::Order::Middle)
+            .filter(|layer| layer.order == crate::Order::Middle)
             .filter_map(|layer| self.get(layer.id))
             .collect()
     }

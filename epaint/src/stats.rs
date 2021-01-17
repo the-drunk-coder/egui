@@ -1,5 +1,8 @@
-use {crate::*, emath::*};
+//! Collect statistics about what is being painted.
 
+use crate::*;
+
+/// Size of the elements in a vector/array.
 #[derive(Clone, Copy, PartialEq)]
 enum ElementSize {
     Unknown,
@@ -13,6 +16,7 @@ impl Default for ElementSize {
     }
 }
 
+/// Aggregate information about a bunch of allocations.
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct AllocInfo {
     element_size: ElementSize,
@@ -131,6 +135,7 @@ impl AllocInfo {
     }
 }
 
+/// Collected allocation statistics for shapes and meshes.
 #[derive(Clone, Copy, Default)]
 pub struct PaintStats {
     pub shapes: AllocInfo,
@@ -146,13 +151,13 @@ pub struct PaintStats {
 }
 
 impl PaintStats {
-    pub fn from_shapes(shapes: &[(Rect, Shape)]) -> Self {
+    pub fn from_shapes(shapes: &[ClippedShape]) -> Self {
         let mut stats = Self::default();
         stats.shape_path.element_size = ElementSize::Heterogenous; // nicer display later
         stats.shape_vec.element_size = ElementSize::Heterogenous; // nicer display later
 
         stats.shapes = AllocInfo::from_slice(shapes);
-        for (_, shape) in shapes {
+        for ClippedShape(_, shape) in shapes {
             stats.add(shape);
         }
         stats
