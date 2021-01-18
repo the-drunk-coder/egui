@@ -1421,48 +1421,41 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     }
 
     let mut balance:i32 = 0;
-    let mut newline_found = false;
+    // beginning: lparen right after newline
+    let mut lparen_found = false;
     while let Some(l_char) = it_l.next() {
-	if l_char == '\n' && newline_found { // two newlines - assume end
+	if l_char == '\n' && lparen_found { // two newlines - assume end
 	    break;
-	} else if l_char == '\n' {
-	    l_pos -= 1;
-	    newline_found = true;	    
 	} else if l_char == '(' {	    
 	    l_pos -= 1;
 	    last_opening = l_pos;
 	    balance += 1;
-	    newline_found = false;
+	    lparen_found = true;
 	} else if l_char == ')' {	    
 	    l_pos -= 1;
 	    balance -= 1;
-	    newline_found = false;	    
+	    lparen_found = false;	    
 	} else {
 	    l_pos -= 1;
-	    newline_found = false;	    
+	    lparen_found = false;	    
 	}
     }
 
-    newline_found = false;
     while let Some(r_char) = it_r.next() {
-	if r_char == '\n' && newline_found { // two newlines - assume end
-	    break;
-	} else if r_char == '\n' {
+	if r_char == '(' {	    
 	    r_pos += 1;
-	    newline_found = true;	    
-	} else if r_char == '(' {	    
-	    r_pos += 1;
-	    balance += 1;
-	    newline_found = false;	    
+	    balance += 1;	
 	} else if r_char == ')' {	    
 	    r_pos += 1;
 	    last_closing = r_pos;
 	    balance -= 1;
-	    newline_found = false;	    
 	} else {
 	    r_pos += 1;
-	    newline_found = false;	    
-	}	
+	}
+
+	if balance == 0 {
+	    break;
+	}
     }
 
     if balance == 0 {
