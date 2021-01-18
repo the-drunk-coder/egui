@@ -131,8 +131,8 @@ impl Interaction {
 
     fn begin_frame(
         &mut self,
-        prev_input: &crate::input::InputState,
-	_: &crate::input::RawInput,
+        prev_input: &crate::input_state::InputState,
+	_: &crate::RawInput,
     ) {
         self.kb_focus_id_previous_frame = self.kb_focus_id;
         self.click_interest = false;

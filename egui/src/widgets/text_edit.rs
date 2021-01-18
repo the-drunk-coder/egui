@@ -9,7 +9,9 @@ use crate::{
 #[cfg_attr(feature = "persistence", serde(default))]
 pub(crate) struct State {
     cursorp: Option<CursorPair>,
-
+    flash_cursorp: Option<CursorPair>,
+    flash_alpha: u8,
+    
     #[cfg_attr(feature = "persistence", serde(skip))]
     undoer: Undoer<(CCursorPair, String)>,
 }
@@ -511,7 +513,7 @@ impl<'t> TextEdit<'t> {
 
         if ui.memory().has_kb_focus(id) {
             if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(ui, response.rect.min, &galley, &cursorp);
+                paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, ui.style().visuals.selection.bg_fill);
                 paint_cursor_end(ui, response.rect.min, &galley, &cursorp.primary);
             }
         }
@@ -870,6 +872,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 				    secondary: galley.from_ccursor(sexp_cursors.secondary),
 				};
 				let sel = selected_str(text, &cup);
+				state.flash_cursorp = Some(cup);
+				state.flash_alpha = 240; // set flash alpha ()
 				if let Some(cb) = eval_callback {
 				    let mut cb_loc = cb.lock();
 				    cb_loc(&sel.to_string());
@@ -1022,9 +1026,15 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 
         if ui.memory().has_kb_focus(id) {
             if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(ui, response.rect.min, &galley, &cursorp);
+                paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, ui.style().visuals.selection.bg_fill);
                 paint_cursor_end(ui, response.rect.min, &galley, &cursorp.primary);
             }
+	    if let Some(cursorp) = state.flash_cursorp {
+		if state.flash_alpha > 40 {
+		    paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha));
+		    state.flash_alpha -= 40;
+		}
+	    }
         }
 
         let text_color = text_color
@@ -1046,8 +1056,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 
 // ----------------------------------------------------------------------------
 
-fn paint_cursor_selection(ui: &mut Ui, pos: Pos2, galley: &Galley, cursorp: &CursorPair) {
-    let color = ui.style().visuals.selection.bg_fill;
+fn paint_cursor_selection(ui: &mut Ui, pos: Pos2, galley: &Galley, cursorp: &CursorPair, color: Color32) {
     if cursorp.is_empty() {
         return;
     }
