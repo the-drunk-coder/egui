@@ -1413,6 +1413,8 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 
     let mut l_pos = pos;
     let mut r_pos = pos;
+    let mut last_closing = pos;
+    let mut last_opening = pos;
   	
     for _ in 0..rev_pos {
 	it_l.next();
@@ -1430,11 +1432,12 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 	} else if l_char == '\n' {
 	    l_pos -= 1;
 	    newline_found = true;	    
-	} else if l_char == '(' {
+	} else if l_char == '(' {	    
 	    l_pos -= 1;
+	    last_opening = l_pos;
 	    balance += 1;
 	    newline_found = false;
-	} else if l_char == ')' {
+	} else if l_char == ')' {	    
 	    l_pos -= 1;
 	    balance -= 1;
 	    newline_found = false;	    
@@ -1451,12 +1454,13 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 	} else if r_char == '\n' {
 	    r_pos += 1;
 	    newline_found = true;	    
-	} else if r_char == '(' {
+	} else if r_char == '(' {	    
 	    r_pos += 1;
 	    balance += 1;
 	    newline_found = false;	    
-	} else if r_char == ')' {
+	} else if r_char == ')' {	    
 	    r_pos += 1;
+	    last_closing = r_pos;
 	    balance -= 1;
 	    newline_found = false;	    
 	} else {
@@ -1467,11 +1471,11 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 
     if balance == 0 {
 	let left = CCursor {
-            index: l_pos,
+            index: last_opening,
             prefer_next_row: true,
 	};
 	let right = CCursor {
-            index: r_pos,
+            index: last_closing,
             prefer_next_row: false,
 	};
 	Some(CCursorPair::two(right, left))
