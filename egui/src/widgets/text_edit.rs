@@ -11,7 +11,7 @@ pub(crate) struct State {
     cursorp: Option<CursorPair>,
     flash_cursorp: Option<CursorPair>,
     flash_alpha: u8,
-    
+    selection_toggle: bool,    
     #[cfg_attr(feature = "persistence", serde(skip))]
     undoer: Undoer<(CCursorPair, String)>,
 }
@@ -547,7 +547,7 @@ impl<'t> TextEdit<'t> {
 ///     // use my_string
 /// }
 /// ```
-use std::sync::{*, atomic::{Ordering, AtomicBool}};
+use std::sync::*;
 use parking_lot::Mutex;
 
 pub struct CallbackTextEdit<'t>  {
@@ -559,14 +559,13 @@ pub struct CallbackTextEdit<'t>  {
     enabled: bool,
     desired_width: Option<f32>,
     desired_height_rows: usize,
-    eval_callback: Option<Arc<Mutex<dyn FnMut(&String)>>>,
-    selection_toggle: &'t mut AtomicBool,
+    eval_callback: Option<Arc<Mutex<dyn FnMut(&String)>>>
 }
 
 impl<'t> CallbackTextEdit<'t>  {
             
     /// A `TextEdit` for multiple lines. Pressing enter key will create a new line.
-    pub fn multiline(text: &'t mut String, selection_toggle: &'t mut AtomicBool) -> Self {
+    pub fn multiline(text: &'t mut String) -> Self {
         CallbackTextEdit {
             text,
             id: None,
@@ -577,7 +576,6 @@ impl<'t> CallbackTextEdit<'t>  {
             desired_width: None,
             desired_height_rows: 4,
 	    eval_callback: None,
-	    selection_toggle,
         }
     }
 
@@ -645,7 +643,6 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             desired_width,
             desired_height_rows,
 	    eval_callback,
-	    selection_toggle
         } = self;
 
         let text_style = text_style.unwrap_or_else(|| ui.style().body_text_style);
@@ -765,7 +762,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 		let did_mutate_text = match event {
                     Event::Copy => {
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 
 			// don't copy empty text
 			if !cursorp.is_empty() {                            
@@ -776,7 +773,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                     }
                     Event::Cut => {
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			
 			if !cursorp.is_empty() {
                             ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
@@ -787,7 +784,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                     }
                     Event::Text(text_to_insert) => {
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			
 			// Newlines are handled by `Key::Enter`.
                         if !text_to_insert.is_empty()
@@ -810,7 +807,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			let mut ccursor = delete_selected(text, &cursorp);
                         insert_text(&mut ccursor, text, "  ");
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			Some(CCursorPair::one(ccursor))			
 		    }
 		    Event::Key {
@@ -818,9 +815,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			if modifiers.command {
-			    let sel = selection_toggle.load(Ordering::SeqCst);			   			    
-			    selection_toggle.store(!sel, Ordering::SeqCst);			    
+			if modifiers.command {			    
+			    state.selection_toggle = !state.selection_toggle;
 			}
 			None
 		    },
@@ -836,7 +832,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			let mut ccursor = delete_selected(text, &cursorp);
 			insert_text(&mut ccursor, text, format!("({})", selection).as_str());
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			// go to opening paren so the function name can be entered ... 
 			ccursor.index -= selection_len + 1;			    
 			Some(CCursorPair::one(ccursor))
@@ -853,7 +849,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			let mut ccursor = delete_selected(text, &cursorp);
 			insert_text(&mut ccursor, text, format!("\"{}\"", selection).as_str());
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			// go to opening paren so the function name can be entered ... 
 			ccursor.index -= selection_len + 1;			    
 			Some(CCursorPair::one(ccursor))
@@ -864,7 +860,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			if modifiers.command {			    
 			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
 				let cup = CursorPair {
@@ -894,7 +890,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         ..
                     } => {
 			// clear selection
-			selection_toggle.store(false, Ordering::SeqCst);
+			state.selection_toggle = false;
 			cursorp.secondary = cursorp.primary;
                         //ui.memory().surrender_kb_focus(id);			
                         break;
@@ -922,7 +918,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowLeft, modifiers, false);
-			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
 			None
@@ -933,7 +929,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers, false);
-			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
 			None
@@ -945,7 +941,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                     } => {
 			if modifiers.ctrl {			    
 			    move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers, true);
-			    if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			    if !modifiers.shift && !state.selection_toggle {
 				cursorp.secondary = cursorp.primary;
 			    }
 			}
@@ -957,7 +953,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowUp, modifiers, false);
-			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
 			None
@@ -968,7 +964,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowDown, modifiers, false);
-			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
 			None
@@ -979,7 +975,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			move_single_cursor(&mut cursorp.primary, &galley, Key::Home, modifiers, false);
-			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
 			None
@@ -990,7 +986,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         modifiers,
                     } => {
 			move_single_cursor(&mut cursorp.primary, &galley, Key::End, modifiers, false);
-			if !modifiers.shift && !selection_toggle.load(Ordering::SeqCst) {
+			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
 			None
