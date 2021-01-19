@@ -1401,17 +1401,32 @@ fn select_word_at(text: &str, ccursor: CCursor) -> CCursorPair {
 fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     let [min, _] = cursorp.sorted();
     
-    let pos = min.ccursor.index;
-    let rev_pos = text.len() - pos;
-    
+    let mut pos = min.ccursor.index;
+    let mut rev_pos = text.len() - pos;
+        
     let mut it_l = text.chars().rev();
     let mut it_r = text.chars();
-
+    
     let mut l_pos = pos;
     let mut r_pos = pos;
     let mut last_closing = pos;
     let mut last_opening = pos;
-  	
+
+    // special case: if the cursor is right on an opening paren,
+    // move one right ...
+    if let Some(cur_chars) = text.get(pos..(pos + 1)) {
+	if let Some(cur_char) = cur_chars.chars().next() {
+	    if cur_char == '(' {		
+		rev_pos =  text.len() - (pos + 1);
+		l_pos = pos + 1;
+		r_pos = pos + 1;
+		last_closing = pos + 1;
+		last_opening = pos + 1;
+		pos = pos + 1;
+	    }
+	}
+    }
+        
     for _ in 0..rev_pos {
 	it_l.next();
     }
@@ -1457,7 +1472,7 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 	    break;
 	}
     }
-
+    
     if balance == 0 {
 	let left = CCursor {
             index: last_opening,
