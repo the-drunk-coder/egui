@@ -689,10 +689,10 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 		
                 let cursor_at_mouse = galley.cursor_from_pos(mouse_pos - response.rect.min);
 
-                if response.hovered {
-                    // preview:
-                    paint_cursor_end(ui, response.rect.min, &galley, &cursor_at_mouse);
-                }
+                //if response.hovered {
+                //    // preview:
+                //    paint_cursor_end(ui, response.rect.min, &galley, &cursor_at_mouse);
+                //}
 
                 if response.hovered && response.double_clicked {
                     // Select word:
