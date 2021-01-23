@@ -38,7 +38,9 @@ If you have questions, use [Discussions](https://github.com/emilk/egui/discussio
 
 [Click to run egui web demo](https://emilk.github.io/egui/index.html).
 
-[Hobogo](https://emilk.github.io/hobogo/index.html): A small game I made using egui. Source: <https://github.com/emilk/hobogo>
+To test the demo app locally, run `cargo run --release -p egui_demo_app`.
+
+On Linux you need to first run `sudo apt-get install libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev`.
 
 ### Example
 
@@ -156,6 +158,7 @@ The same code can be compiled to a native app or a web app.
 
 ### 3rd party
 
+* [`bevy_egui`](https://github.com/mvlabat/bevy_egui) egui bindings for [the Bevy game engine](https://bevyengine.org/).
 * [`wgpu`](https://crates.io/crates/wgpu) WebGPU API wrapper:
   * [egui_wgpu_backend](https://crates.io/crates/egui_wgpu_backend) with [example code](https://github.com/hasenbanck/egui_example)
   * Alternative: [egui_winit_wgpu](https://github.com/Gonkalbell/egui_winit_wgpu) (not available to crates.io)
