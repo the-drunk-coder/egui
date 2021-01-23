@@ -803,12 +803,20 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         pressed: true,
                         ..
                     } => {
-			//println!("tab");
-			let mut ccursor = delete_selected(text, &cursorp);
-                        insert_text(&mut ccursor, text, "  ");
-			// clear selection
-			state.selection_toggle = false;
-			Some(CCursorPair::one(ccursor))			
+			if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+			    let cup = CursorPair {
+				primary: galley.from_ccursor(sexp_cursors.primary),
+				secondary: galley.from_ccursor(sexp_cursors.secondary),
+			    };
+
+			    let formatted = {
+				format_sexp(selected_str(text, &cup))
+			    };
+
+			    let mut ccursor = delete_selected(text, &cup);
+			    insert_text(&mut ccursor, text, &formatted);
+			} 
+			None			    
 		    }
 		    Event::Key {
                         key: Key::Space,
@@ -1486,6 +1494,49 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     } else {
 	None
     }
+}
+
+fn format_sexp(input: &str) -> String {
+    let mut lvl = 0;
+    let mut out = "".to_string();
+    let mut no_whitespace = false;
+    
+    for c in input.chars(){
+	match c {
+	    '(' => {
+		lvl += 1;
+		out.push(c);
+		no_whitespace = false;
+	    },
+	    ')' => {
+		lvl -= 1;
+		out.push(c);
+		no_whitespace = false;
+	    },
+	    '\n' => {
+		out.push(c);
+		no_whitespace = true;		
+		for _ in 0..lvl {
+		    out.push(' ');
+		    out.push(' ');
+		}
+	    },
+	    ' ' => {	
+		if !no_whitespace {
+		    out.push(c);
+		    no_whitespace = true;
+		}		
+	    },
+	    '\t' => {
+		// ignore tabs
+	    },
+	    _ => {		
+		out.push(c);
+		no_whitespace = false;
+	    },
+	}
+    }
+    out
 }
 
 fn ccursor_next_word(text: &str, ccursor: CCursor) -> CCursor {
