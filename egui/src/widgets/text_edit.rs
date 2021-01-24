@@ -684,16 +684,9 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 
         if enabled {
             if let Some(mouse_pos) = ui.input().mouse.pos {
-                // TODO: triple-click to select whole paragraph
-                // TODO: drag selected text to either move or clone (ctrl on windows, alt on mac)
-		
+                		
                 let cursor_at_mouse = galley.cursor_from_pos(mouse_pos - response.rect.min);
-
-                //if response.hovered {
-                //    // preview:
-                //    paint_cursor_end(ui, response.rect.min, &galley, &cursor_at_mouse);
-                //}
-
+                
                 if response.hovered && response.double_clicked {
                     // Select word:
                     let center = cursor_at_mouse;
@@ -869,12 +862,14 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                     } => {
 			// clear selection
 			state.selection_toggle = false;
-			if modifiers.command {			    
+			if modifiers.command {
 			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
 				let cup = CursorPair {
 				    primary: galley.from_ccursor(sexp_cursors.primary),
 				    secondary: galley.from_ccursor(sexp_cursors.secondary),
 				};
+				
+				// flash selected sexp ...				
 				let sel = selected_str(text, &cup);
 				state.flash_cursorp = Some(cup);
 				state.flash_alpha = 240; // set flash alpha ()
@@ -883,13 +878,35 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 				    cb_loc(&sel.to_string());
 				} else {
 				    println!("no callback!");
-				}				    
-			    }			    			    
+				}				
+			    } 			    			    
 			    break; // need to break here because of callback move ...
 			} else {
-                            let mut ccursor = delete_selected(text, &cursorp);
-                            insert_text(&mut ccursor, text, "\n");
-                            Some(CCursorPair::one(ccursor))
+			    // let's check if we're in an s-expression
+			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+				let mut ccursorp = cursorp.as_ccursorp();
+				// only need indentation, so let's get the text
+				// from the beginning of the current s-expression
+				// to the current cursor pos
+				let cup = CursorPair {
+				    primary: galley.from_ccursor(sexp_cursors.primary),
+				    secondary: galley.from_ccursor(ccursorp.primary),
+				};
+				// get indentation level
+				let indent_level = sexp_indent_level(selected_str(text, &cup));
+				// insert line break and indentation ...
+				insert_text(&mut ccursorp.secondary, text, "\n");
+				if indent_level != 0 {
+				    for _ in 0..indent_level {
+					insert_text(&mut ccursorp.secondary, text, "  ");
+				    }
+				}
+				Some(CCursorPair::one(ccursorp.secondary))
+			    } else {
+				let mut ccursor = delete_selected(text, &cursorp);
+				insert_text(&mut ccursor, text, "\n");
+				Some(CCursorPair::one(ccursor))
+			    }
                         }			
                     }
                     Event::Key {
@@ -1420,6 +1437,8 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     let mut last_closing = pos;
     let mut last_opening = pos;
 
+    let mut sexp_found = false;
+
     // special case: if the cursor is right on an opening paren,
     // move one right ...
     if let Some(cur_chars) = text.get(pos..(pos + 1)) {
@@ -1447,9 +1466,11 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     // beginning: lparen right after newline
     let mut lparen_found = false;
     while let Some(l_char) = it_l.next() {
+	
 	if l_char == '\n' && lparen_found { // two newlines - assume end
 	    break;
-	} else if l_char == '(' {	    
+	} else if l_char == '(' {
+	    sexp_found = true;
 	    l_pos -= 1;
 	    last_opening = l_pos;
 	    balance += 1;
@@ -1461,7 +1482,7 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 	} else {
 	    l_pos -= 1;
 	    lparen_found = false;	    
-	}
+	}	
     }
 
     while let Some(r_char) = it_r.next() {
@@ -1475,13 +1496,13 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
 	} else {
 	    r_pos += 1;
 	}
-
+	
 	if balance == 0 {
 	    break;
 	}
     }
     
-    if balance == 0 {
+    if balance == 0 && sexp_found {
 	let left = CCursor {
             index: last_opening,
             prefer_next_row: true,
@@ -1537,6 +1558,24 @@ fn format_sexp(input: &str) -> String {
 	}
     }
     out
+}
+
+fn sexp_indent_level(input: &str) -> usize {
+    let mut lvl = 0;    
+    for c in input.chars() {
+	match c {
+	    '(' => {
+		lvl += 1;		
+		
+	    },
+	    ')' => {
+		lvl -= 1;		
+		
+	    },	    
+	    _ => {},
+	}
+    }
+    lvl
 }
 
 fn ccursor_next_word(text: &str, ccursor: CCursor) -> CCursor {
