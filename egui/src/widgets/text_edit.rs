@@ -797,6 +797,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         ..
                     } => {
 			if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+			    let old_cursor = cursorp.as_ccursorp();
 			    let cup = CursorPair {
 				primary: galley.from_ccursor(sexp_cursors.primary),
 				secondary: galley.from_ccursor(sexp_cursors.secondary),
@@ -808,8 +809,10 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 
 			    let mut ccursor = delete_selected(text, &cup);
 			    insert_text(&mut ccursor, text, &formatted);
-			} 
-			None			    
+			    Some(CCursorPair::one(old_cursor.primary))
+			} else {
+			    None
+			}			    
 		    }
 		    Event::Key {
                         key: Key::Space,
@@ -866,7 +869,7 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
 				let cup = CursorPair {
 				    primary: galley.from_ccursor(sexp_cursors.primary),
-				    secondary: galley.from_ccursor(sexp_cursors.secondary),
+ 				    secondary: galley.from_ccursor(sexp_cursors.secondary),
 				};
 				
 				// flash selected sexp ...				
@@ -920,7 +923,6 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
                         //ui.memory().surrender_kb_focus(id);			
                         break;
                     }
-
                     Event::Key {
                         key: Key::Z,
                         pressed: true,
@@ -1423,6 +1425,8 @@ fn select_word_at(text: &str, ccursor: CCursor) -> CCursorPair {
     }
 }
 
+
+/// find toplevel s-expression from current cursor position ...
 fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     let [min, _] = cursorp.sorted();
     
@@ -1517,6 +1521,8 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     }
 }
 
+
+/// format an s-expression (content-agnostic)
 fn format_sexp(input: &str) -> String {
     let mut lvl = 0;
     let mut out = "".to_string();
@@ -1560,6 +1566,9 @@ fn format_sexp(input: &str) -> String {
     out
 }
 
+
+/// get the level of indentation needed up to the end of the
+/// slice. 
 fn sexp_indent_level(input: &str) -> usize {
     let mut lvl = 0;    
     for c in input.chars() {
