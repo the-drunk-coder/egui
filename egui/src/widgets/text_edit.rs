@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{HashMap, BTreeMap};
 use crate::{
     paint::{text::cursor::*, *},
     util::undoer::Undoer,
@@ -551,7 +551,7 @@ impl<'t> TextEdit<'t> {
 use std::sync::*;
 use parking_lot::Mutex;
 
-pub struct CallbackTextEdit<'t>  {
+pub struct LivecodeTextEdit<'t>  {
     text: &'t mut String,
     id: Option<Id>,
     id_source: Option<Id>,
@@ -560,14 +560,26 @@ pub struct CallbackTextEdit<'t>  {
     enabled: bool,
     desired_width: Option<f32>,
     desired_height_rows: usize,
-    eval_callback: Option<Arc<Mutex<dyn FnMut(&String)>>>
+    eval_callback: Option<Arc<Mutex<dyn FnMut(&String)>>>,
+    function_names: &'t Vec<&'t str>,
+    colors:  &'t HashMap<CodeColors, Color32>
 }
 
-impl<'t> CallbackTextEdit<'t>  {
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum CodeColors {
+    Keyword,
+    Function,
+    Boolean,
+    Normal,
+    Comment,
+    Linebreak,
+}
+
+impl<'t> LivecodeTextEdit<'t>  {
             
     /// A `TextEdit` for multiple lines. Pressing enter key will create a new line.
-    pub fn multiline(text: &'t mut String) -> Self {
-        CallbackTextEdit {
+    pub fn multiline(text: &'t mut String, function_names: &'t Vec<&'t str>, colors: &'t HashMap<CodeColors, Color32>) -> Self {
+        LivecodeTextEdit {
             text,
             id: None,
             id_source: None,
@@ -577,6 +589,8 @@ impl<'t> CallbackTextEdit<'t>  {
             desired_width: None,
             desired_height_rows: 4,
 	    eval_callback: None,
+	    function_names,
+	    colors,
         }
     }
 
@@ -632,9 +646,9 @@ impl<'t> CallbackTextEdit<'t>  {
     }
 }
 
-impl<'t> Widget for CallbackTextEdit<'t>  {
+impl<'t> Widget for LivecodeTextEdit<'t>  {
     fn ui(self, ui: &mut Ui) -> Response {
-        let CallbackTextEdit {
+        let LivecodeTextEdit {
             text,
             id,
             id_source,
@@ -644,6 +658,8 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             desired_width,
             desired_height_rows,
 	    eval_callback,
+	    function_names,
+	    colors	
         } = self;
 
         let text_style = text_style.unwrap_or_else(|| ui.style().body_text_style);
@@ -1065,24 +1081,27 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
             .or(ui.style().visuals.override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
             .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
-
-	let code_colors = generate_lisp_color_map(text);
+	
+	let code_colors = generate_lisp_color_map(text, function_names);
 	let mut egui_colors = BTreeMap::new();
+
+	
 	for (k, v) in code_colors.iter() {
+	    //println!("{} {:?}", k,v );
 	    match v {
 		CodeColors::Function => {
-		    egui_colors.insert(*k, Color32::from_rgb(240,120,59));
+		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Keyword => {
-		    egui_colors.insert(*k, Color32::from_rgb(140,220,59));
+		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Comment => {
-		    egui_colors.insert(*k, Color32::from_rgb(0,220,59));
+		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Boolean => {
-		    egui_colors.insert(*k, Color32::from_rgb(0,200,159));
+		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
-		_ => {
+		_ => {		    
 		    egui_colors.insert(*k, default_color);
 		}
 	    }
@@ -1610,24 +1629,8 @@ fn sexp_indent_level(input: &str) -> usize {
     lvl
 }
 
-
-#[derive(Clone, Copy, Debug)]
-enum CodeColors {
-    Keyword,
-    Function,
-    Boolean,
-    Normal,
-    Comment,
-    Linebreak,
-}
-
-fn generate_lisp_color_map (input: &str) -> BTreeMap<usize, CodeColors> {
+fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap<usize, CodeColors> {
     let mut color_map = BTreeMap::new();
-
-    let mut function_names = Vec::new();
-    function_names.push("sx");
-    function_names.push("pear");
-    function_names.push("nuc");
     
     color_map.insert(0, CodeColors::Normal);
     
