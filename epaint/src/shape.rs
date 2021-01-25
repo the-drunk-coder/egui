@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use crate::{
     text::{Fonts, Galley, TextStyle},
     Color32, Stroke, Triangles,
@@ -46,6 +47,15 @@ pub enum Shape {
         galley: Galley,
         text_style: TextStyle, // TODO: Font?
         color: Color32,
+    },
+    MulticolorText {
+        /// Top left corner of the first character.
+        pos: Pos2,
+        /// The layed out text
+        galley: Galley,
+	text_style: TextStyle, // TODO: Font?
+	colors: BTreeMap<usize, Color32>,
+        default_color: Color32,
     },
     Triangles(Triangles),
 }
@@ -183,6 +193,9 @@ impl Shape {
                 *rect = rect.translate(delta);
             }
             Shape::Text { pos, .. } => {
+                *pos += delta;
+            }
+	    Shape::MulticolorText { pos, .. } => {
                 *pos += delta;
             }
             Shape::Triangles(triangles) => {

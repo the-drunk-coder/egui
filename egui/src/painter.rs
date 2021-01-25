@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use crate::{
     layers::{LayerId, ShapeIdx},
     math::{Align2, Pos2, Rect, Vec2},
@@ -274,6 +275,17 @@ impl Painter {
             galley,
             text_style,
             color,
+        });
+    }
+
+    /// Paint text that has already been layed out in a `Galley`, with multiple colors
+    pub fn multicolor_galley(&self, pos: Pos2, galley: Galley, text_style: TextStyle, colors: BTreeMap<usize, Color32>, default_color: Color32) {
+        self.add(Shape::MulticolorText {
+            pos,
+            galley,
+            text_style,
+            colors,
+	    default_color,
         });
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use crate::{
     paint::{text::cursor::*, *},
     util::undoer::Undoer,
@@ -1060,13 +1061,35 @@ impl<'t> Widget for CallbackTextEdit<'t>  {
 	    }
         }
 
-        let text_color = text_color
+        let default_color = text_color
             .or(ui.style().visuals.override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
             .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
 
+	let code_colors = generate_lisp_color_map(text);
+	let mut egui_colors = BTreeMap::new();
+	for (k, v) in code_colors.iter() {
+	    match v {
+		CodeColors::Function => {
+		    egui_colors.insert(*k, Color32::from_rgb(240,120,59));
+		}
+		CodeColors::Keyword => {
+		    egui_colors.insert(*k, Color32::from_rgb(140,220,59));
+		}
+		CodeColors::Comment => {
+		    egui_colors.insert(*k, Color32::from_rgb(0,220,59));
+		}
+		CodeColors::Boolean => {
+		    egui_colors.insert(*k, Color32::from_rgb(0,200,159));
+		}
+		_ => {
+		    egui_colors.insert(*k, default_color);
+		}
+	    }
+	}
+	
 	ui.painter()
-            .galley(response.rect.min, galley, text_style, text_color);
+            .multicolor_galley(response.rect.min, galley, text_style, egui_colors, default_color);
 
         ui.memory().text_edit.insert(id, state);
 
@@ -1585,6 +1608,86 @@ fn sexp_indent_level(input: &str) -> usize {
 	}
     }
     lvl
+}
+
+
+#[derive(Clone, Copy, Debug)]
+enum CodeColors {
+    Keyword,
+    Function,
+    Boolean,
+    Normal,
+    Comment,
+    Linebreak,
+}
+
+fn generate_lisp_color_map (input: &str) -> BTreeMap<usize, CodeColors> {
+    let mut color_map = BTreeMap::new();
+
+    let mut function_names = Vec::new();
+    function_names.push("sx");
+    function_names.push("pear");
+    function_names.push("nuc");
+    
+    color_map.insert(0, CodeColors::Normal);
+    
+    for (i, _) in input.match_indices(":") {
+	color_map.insert(i, CodeColors::Keyword);
+    }
+    
+    for (i, _) in input.match_indices("#") {
+	color_map.insert(i, CodeColors::Boolean);
+    }
+
+    for (i, _) in input.match_indices(";") {
+	color_map.insert(i, CodeColors::Comment);
+    }
+
+    for f in function_names.iter() {
+	for (i, _) in input.match_indices(f) {
+	    color_map.insert(i, CodeColors::Function);
+	}
+    }
+
+    for (i, _) in input.match_indices( '\n') {
+	color_map.insert(i, CodeColors::Linebreak);	
+    }
+
+    // clear 
+    for (i, _) in input.match_indices(|c| c == ' ' || c == '(' || c == ')') {
+	color_map.insert(i, CodeColors::Normal);	
+    }
+
+    let mut color_map_clean = BTreeMap::new();
+
+    let mut found_comment = false;
+    let mut found_normal = false;
+
+    for (k,v) in color_map.iter() {
+	match v {
+	    CodeColors::Comment => {
+		color_map_clean.insert(*k,*v);
+		found_comment = true;
+		found_normal = false;
+	    },
+	    CodeColors::Normal => {
+		if !found_normal && ! found_comment {
+		    color_map_clean.insert(*k,*v);
+		    found_normal = true;
+		}				
+	    },
+	    CodeColors::Linebreak => {	
+		found_comment = false;
+	    },
+	    _ => {
+		if !found_comment {
+		    color_map_clean.insert(*k,*v);
+		    found_normal = false;
+		}		
+	    }
+	}	
+    }
+    color_map_clean
 }
 
 fn ccursor_next_word(text: &str, ccursor: CCursor) -> CCursor {

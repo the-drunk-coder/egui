@@ -179,7 +179,10 @@ impl PaintStats {
             Shape::Path { points, .. } => {
                 self.shape_path += AllocInfo::from_slice(points);
             }
-            Shape::Text { galley, .. } => {
+            Shape::Text  { galley, .. } => {
+                self.shape_text += AllocInfo::from_galley(galley);
+            }
+	    Shape::MulticolorText  { galley, .. } => {
                 self.shape_text += AllocInfo::from_galley(galley);
             }
             Shape::Triangles(triangles) => {
