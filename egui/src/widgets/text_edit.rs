@@ -572,6 +572,7 @@ pub enum CodeColors {
     Boolean,
     Normal,
     Comment,
+    String,
     Linebreak,
 }
 
@@ -1084,7 +1085,6 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 	
 	let code_colors = generate_lisp_color_map(text, function_names);
 	let mut egui_colors = BTreeMap::new();
-
 	
 	for (k, v) in code_colors.iter() {
 	    //println!("{} {:?}", k,v );
@@ -1099,6 +1099,9 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Boolean => {
+		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
+		},
+		CodeColors::String => {
 		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		_ => {		    
@@ -1629,6 +1632,7 @@ fn sexp_indent_level(input: &str) -> usize {
     lvl
 }
 
+/// primitive ad-hoc color map generator
 fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap<usize, CodeColors> {
     let mut color_map = BTreeMap::new();
     
@@ -1652,8 +1656,12 @@ fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap
 	}
     }
 
-    for (i, _) in input.match_indices( '\n') {
+    for (i, _) in input.match_indices('\n') {
 	color_map.insert(i, CodeColors::Linebreak);	
+    }
+
+    for (i, _) in input.match_indices('\"') {
+	color_map.insert(i, CodeColors::String);	
     }
 
     // clear 
@@ -1665,16 +1673,29 @@ fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap
 
     let mut found_comment = false;
     let mut found_normal = false;
+    let mut found_string = false;
 
     for (k,v) in color_map.iter() {
 	match v {
 	    CodeColors::Comment => {
-		color_map_clean.insert(*k,*v);
-		found_comment = true;
+		if !found_string {
+		    color_map_clean.insert(*k,*v);
+		    found_comment = true;
+		    found_normal = false;
+		}
+	    },
+	    CodeColors::String => {
+		if !found_string {
+		    color_map_clean.insert(*k,*v);
+		    found_string = true;
+		} else {
+		    found_string = false;
+		}
+		
 		found_normal = false;
 	    },
 	    CodeColors::Normal => {
-		if !found_normal && ! found_comment {
+		if !found_normal && !found_comment && !found_string {
 		    color_map_clean.insert(*k,*v);
 		    found_normal = true;
 		}				
@@ -1683,7 +1704,7 @@ fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap
 		found_comment = false;
 	    },
 	    _ => {
-		if !found_comment {
+		if !found_comment && !found_string {
 		    color_map_clean.insert(*k,*v);
 		    found_normal = false;
 		}		
