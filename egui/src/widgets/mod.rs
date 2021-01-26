@@ -2,7 +2,7 @@
 //!
 //! Example widget uses:
 //! * `ui.add(Label::new("Text").text_color(color::red));`
-//! * `if ui.add(Button::new("Click me")).clicked { ... }`
+//! * `if ui.add(Button::new("Click me")).clicked() { ... }`
 
 #![allow(clippy::new_without_default)]
 
@@ -40,7 +40,10 @@ pub trait Widget {
 /// The button is only enabled if the value does not already have its original value.
 pub fn reset_button<T: Default + PartialEq>(ui: &mut Ui, value: &mut T) {
     let def = T::default();
-    if ui.add(Button::new("Reset").enabled(*value != def)).clicked {
+    if ui
+        .add(Button::new("Reset").enabled(*value != def))
+        .clicked()
+    {
         *value = def;
     }
 }
@@ -50,7 +53,7 @@ pub fn reset_button<T: Default + PartialEq>(ui: &mut Ui, value: &mut T) {
 pub fn stroke_ui(ui: &mut crate::Ui, stroke: &mut epaint::Stroke, text: &str) {
     let epaint::Stroke { width, color } = stroke;
     ui.horizontal(|ui| {
-        ui.add(DragValue::f32(width).speed(0.1).range(0.0..=5.0))
+        ui.add(DragValue::f32(width).speed(0.1).clamp_range(0.0..=5.0))
             .on_hover_text("Width");
         ui.color_edit_button_srgba(color);
         ui.label(text);
@@ -67,8 +70,12 @@ pub(crate) fn shadow_ui(ui: &mut Ui, shadow: &mut epaint::Shadow, text: &str) {
     let epaint::Shadow { extrusion, color } = shadow;
     ui.horizontal(|ui| {
         ui.label(text);
-        ui.add(DragValue::f32(extrusion).speed(1.0).range(0.0..=100.0))
-            .on_hover_text("Extrusion");
+        ui.add(
+            DragValue::f32(extrusion)
+                .speed(1.0)
+                .clamp_range(0.0..=100.0),
+        )
+        .on_hover_text("Extrusion");
         ui.color_edit_button_srgba(color);
     });
 }

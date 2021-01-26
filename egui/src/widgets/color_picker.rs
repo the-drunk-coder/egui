@@ -26,20 +26,20 @@ fn background_checkers(painter: &Painter, rect: Rect) {
     let checker_size = Vec2::splat(rect.height() / 2.0);
     let n = (rect.width() / checker_size.x).round() as u32;
 
-    let mut triangles = Triangles::default();
+    let mut mesh = Mesh::default();
     for i in 0..n {
         let x = lerp(rect.left()..=rect.right(), i as f32 / (n as f32));
-        triangles.add_colored_rect(
+        mesh.add_colored_rect(
             Rect::from_min_size(pos2(x, rect.top()), checker_size),
             top_color,
         );
-        triangles.add_colored_rect(
+        mesh.add_colored_rect(
             Rect::from_min_size(pos2(x, rect.center().y), checker_size),
             bottom_color,
         );
         std::mem::swap(&mut top_color, &mut bottom_color);
     }
-    painter.add(Shape::triangles(triangles));
+    painter.add(Shape::mesh(mesh));
 }
 
 pub fn show_color(ui: &mut Ui, color: impl Into<Hsva>, desired_size: Vec2) -> Response {
@@ -94,10 +94,8 @@ fn color_slider_1d(ui: &mut Ui, value: &mut f32, color_at: impl Fn(f32) -> Color
     );
     let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
 
-    if response.active {
-        if let Some(mpos) = ui.input().mouse.pos {
-            *value = remap_clamp(mpos.x, rect.left()..=rect.right(), 0.0..=1.0);
-        }
+    if let Some(mpos) = response.interact_pointer_pos() {
+        *value = remap_clamp(mpos.x, rect.left()..=rect.right(), 0.0..=1.0);
     }
 
     let visuals = ui.style().interact(&response);
@@ -106,19 +104,19 @@ fn color_slider_1d(ui: &mut Ui, value: &mut f32, color_at: impl Fn(f32) -> Color
 
     {
         // fill color:
-        let mut triangles = Triangles::default();
+        let mut mesh = Mesh::default();
         for i in 0..=N {
             let t = i as f32 / (N as f32);
             let color = color_at(t);
             let x = lerp(rect.left()..=rect.right(), t);
-            triangles.colored_vertex(pos2(x, rect.top()), color);
-            triangles.colored_vertex(pos2(x, rect.bottom()), color);
+            mesh.colored_vertex(pos2(x, rect.top()), color);
+            mesh.colored_vertex(pos2(x, rect.bottom()), color);
             if i < N {
-                triangles.add_triangle(2 * i + 0, 2 * i + 1, 2 * i + 2);
-                triangles.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
+                mesh.add_triangle(2 * i + 0, 2 * i + 1, 2 * i + 2);
+                mesh.add_triangle(2 * i + 1, 2 * i + 2, 2 * i + 3);
             }
         }
-        ui.painter().add(Shape::triangles(triangles));
+        ui.painter().add(Shape::mesh(mesh));
     }
 
     ui.painter().rect_stroke(rect, 0.0, visuals.bg_stroke); // outline
@@ -151,15 +149,13 @@ fn color_slider_2d(
     let desired_size = Vec2::splat(ui.style().spacing.slider_width);
     let (rect, response) = ui.allocate_at_least(desired_size, Sense::click_and_drag());
 
-    if response.active {
-        if let Some(mpos) = ui.input().mouse.pos {
-            *x_value = remap_clamp(mpos.x, rect.left()..=rect.right(), 0.0..=1.0);
-            *y_value = remap_clamp(mpos.y, rect.bottom()..=rect.top(), 0.0..=1.0);
-        }
+    if let Some(mpos) = response.interact_pointer_pos() {
+        *x_value = remap_clamp(mpos.x, rect.left()..=rect.right(), 0.0..=1.0);
+        *y_value = remap_clamp(mpos.y, rect.bottom()..=rect.top(), 0.0..=1.0);
     }
 
     let visuals = ui.style().interact(&response);
-    let mut triangles = Triangles::default();
+    let mut mesh = Mesh::default();
 
     for xi in 0..=N {
         for yi in 0..=N {
@@ -168,18 +164,18 @@ fn color_slider_2d(
             let color = color_at(xt, yt);
             let x = lerp(rect.left()..=rect.right(), xt);
             let y = lerp(rect.bottom()..=rect.top(), yt);
-            triangles.colored_vertex(pos2(x, y), color);
+            mesh.colored_vertex(pos2(x, y), color);
 
             if xi < N && yi < N {
                 let x_offset = 1;
                 let y_offset = N + 1;
                 let tl = yi * y_offset + xi;
-                triangles.add_triangle(tl, tl + x_offset, tl + y_offset);
-                triangles.add_triangle(tl + x_offset, tl + y_offset, tl + y_offset + x_offset);
+                mesh.add_triangle(tl, tl + x_offset, tl + y_offset);
+                mesh.add_triangle(tl + x_offset, tl + y_offset, tl + y_offset + x_offset);
             }
         }
     }
-    ui.painter().add(Shape::triangles(triangles)); // fill
+    ui.painter().add(Shape::mesh(mesh)); // fill
 
     ui.painter().rect_stroke(rect, 0.0, visuals.bg_stroke); // outline
 
@@ -217,7 +213,7 @@ fn color_text_ui(ui: &mut Ui, color: impl Into<Color32>) {
             r, g, b, a
         ));
 
-        if ui.button("📋").on_hover_text("Click to copy").clicked {
+        if ui.button("📋").on_hover_text("Click to copy").clicked() {
             ui.output().copied_text = format!("rgba({}, {}, {}, {})", r, g, b, a);
         }
     });
@@ -323,7 +319,7 @@ pub fn color_edit_button_hsva(ui: &mut Ui, hsva: &mut Hsva, alpha: Alpha) -> Res
     let pupup_id = ui.auto_id_with("popup");
     let button_response = color_button(ui, (*hsva).into()).on_hover_text("Click to edit color");
 
-    if button_response.clicked {
+    if button_response.clicked() {
         ui.memory().toggle_popup(pupup_id);
     }
     // TODO: make it easier to show a temporary popup that closes when you click outside it
@@ -338,8 +334,8 @@ pub fn color_edit_button_hsva(ui: &mut Ui, hsva: &mut Hsva, alpha: Alpha) -> Res
                 })
             });
 
-        if !button_response.clicked {
-            let clicked_outside = ui.input().mouse.click && !area_response.hovered;
+        if !button_response.clicked() {
+            let clicked_outside = ui.input().pointer.any_pressed() && !area_response.hovered();
             if clicked_outside || ui.input().key_pressed(Key::Escape) {
                 ui.memory().close_popup();
             }

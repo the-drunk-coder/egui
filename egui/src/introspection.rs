@@ -3,7 +3,7 @@ use crate::*;
 
 impl Widget for &epaint::Texture {
     fn ui(self, ui: &mut Ui) -> Response {
-        use epaint::Triangles;
+        use epaint::Mesh;
 
         ui.vertical(|ui| {
             // Show font texture in demo Ui
@@ -19,22 +19,20 @@ impl Widget for &epaint::Texture {
                 size *= ui.available_width() / size.x;
             }
             let (rect, response) = ui.allocate_at_least(size, Sense::hover());
-            let mut triangles = Triangles::default();
-            triangles.add_rect_with_uv(
+            let mut mesh = Mesh::default();
+            mesh.add_rect_with_uv(
                 rect,
                 [pos2(0.0, 0.0), pos2(1.0, 1.0)].into(),
                 Color32::WHITE,
             );
-            ui.painter().add(Shape::triangles(triangles));
+            ui.painter().add(Shape::mesh(mesh));
 
             let (tex_w, tex_h) = (self.width as f32, self.height as f32);
 
+            let pointer_pos = response.interact_pointer_pos();
+
             response.on_hover_ui(|ui| {
-                let pos = ui
-                    .input()
-                    .mouse
-                    .pos
-                    .unwrap_or_else(|| ui.min_rect().left_top());
+                let pos = pointer_pos.unwrap_or_else(|| ui.min_rect().left_top());
                 let (_id, zoom_rect) = ui.allocate_space(vec2(128.0, 128.0));
                 let u = remap_clamp(pos.x, rect.x_range(), 0.0..=tex_w);
                 let v = remap_clamp(pos.y, rect.y_range(), 0.0..=tex_h);
@@ -47,9 +45,9 @@ impl Widget for &epaint::Texture {
                     pos2((u - texel_radius) / tex_w, (v - texel_radius) / tex_h),
                     pos2((u + texel_radius) / tex_w, (v + texel_radius) / tex_h),
                 );
-                let mut triangles = Triangles::default();
-                triangles.add_rect_with_uv(zoom_rect, uv_rect, Color32::WHITE);
-                ui.painter().add(Shape::triangles(triangles));
+                let mut mesh = Mesh::default();
+                mesh.add_rect_with_uv(zoom_rect, uv_rect, Color32::WHITE);
+                ui.painter().add(Shape::mesh(mesh));
             });
         })
         .1
@@ -90,7 +88,7 @@ impl Widget for &epaint::stats::PaintStats {
                 shape_path,
                 shape_mesh,
                 shape_vec,
-                jobs,
+                clipped_meshes,
                 vertices,
                 indices,
             } = self;
@@ -99,12 +97,13 @@ impl Widget for &epaint::stats::PaintStats {
             label(ui, shapes, "shapes").on_hover_text("Boxes, circles, etc");
             label(ui, shape_text, "text");
             label(ui, shape_path, "paths");
-            label(ui, shape_mesh, "meshes");
-            label(ui, shape_vec, "nested");
+            label(ui, shape_mesh, "nested meshes");
+            label(ui, shape_vec, "nested shapes");
             ui.advance_cursor(10.0);
 
             ui.label("Tessellated:");
-            label(ui, jobs, "jobs").on_hover_text("Number of separate clip rectangles");
+            label(ui, clipped_meshes, "clipped_meshes")
+                .on_hover_text("Number of separate clip rectangles");
             label(ui, vertices, "vertices");
             label(ui, indices, "indices").on_hover_text("Three 32-bit indices per triangles");
             ui.advance_cursor(10.0);

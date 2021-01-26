@@ -212,15 +212,15 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
             .build();
             app.update(&ctx, &mut frame);
             let (egui_output, shapes) = ctx.end_frame();
-            let paint_jobs = ctx.tessellate(shapes);
+            let clipped_meshes = ctx.tessellate(shapes);
 
             let frame_time = (Instant::now() - frame_start).as_secs_f64() as f32;
             previous_frame_time = Some(frame_time);
-            painter.paint_jobs(
+            painter.paint_meshes(
                 &display,
                 ctx.pixels_per_point(),
                 app.clear_color(),
-                paint_jobs,
+                clipped_meshes,
                 &ctx.texture(),
             );
 

@@ -36,12 +36,19 @@ struct SliderSpec {
 }
 
 /// Control a number by a horizontal slider.
+///
+/// The slider range defines the values you get when pulling the slider to the far edges.
+/// By default, the slider can still show values outside this range,
+/// and still allows users to enter values outside the range by clicking the slider value and editing it.
+/// If you want to clamp incoming and outgoing values, use [`Slider::clamp_to_range`].
+///
 /// The range can include any numbers, and go from low-to-high or from high-to-low.
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 pub struct Slider<'a> {
     get_set_value: GetSetValue<'a>,
     range: RangeInclusive<f64>,
     spec: SliderSpec,
+    clamp_to_range: bool,
     smart_aim: bool,
     // TODO: label: Option<Label>
     text: Option<String>,
@@ -62,6 +69,7 @@ impl<'a> Slider<'a> {
                 logarithmic: false,
                 smallest_positive: 1e-6,
             },
+            clamp_to_range: false,
             smart_aim: true,
             text: None,
             text_color: None,
@@ -156,6 +164,13 @@ impl<'a> Slider<'a> {
         self
     }
 
+    /// If set to `true`, all incoming and outgoing values will be clamped to the slider range.
+    /// Default: `false`.
+    pub fn clamp_to_range(mut self, clamp_to_range: bool) -> Self {
+        self.clamp_to_range = clamp_to_range;
+        self
+    }
+
     /// Turn smart aim on/off. Default is ON.
     /// There is almost no point in turning this off.
     pub fn smart_aim(mut self, smart_aim: bool) -> Self {
@@ -205,10 +220,18 @@ impl<'a> Slider<'a> {
     }
 
     fn get_value(&mut self) -> f64 {
-        get(&mut self.get_set_value)
+        let value = get(&mut self.get_set_value);
+        if self.clamp_to_range {
+            clamp(value, self.range.clone())
+        } else {
+            value
+        }
     }
 
     fn set_value(&mut self, mut value: f64) {
+        if self.clamp_to_range {
+            value = clamp(value, self.range.clone());
+        }
         if let Some(max_decimals) = self.max_decimals {
             value = math::round_to_decimals(value, max_decimals);
         }
@@ -252,19 +275,17 @@ impl<'a> Slider<'a> {
         let rect = &response.rect;
         let x_range = x_range(rect);
 
-        if let Some(mouse_pos) = ui.input().mouse.pos {
-            if response.active {
-                let new_value = if self.smart_aim {
-                    let aim_radius = ui.input().aim_radius();
-                    crate::math::smart_aim::best_in_range_f64(
-                        self.value_from_x(mouse_pos.x - aim_radius, x_range.clone()),
-                        self.value_from_x(mouse_pos.x + aim_radius, x_range.clone()),
-                    )
-                } else {
-                    self.value_from_x(mouse_pos.x, x_range.clone())
-                };
-                self.set_value(new_value);
-            }
+        if let Some(pointer_pos) = response.interact_pointer_pos() {
+            let new_value = if self.smart_aim {
+                let aim_radius = ui.input().aim_radius();
+                crate::math::smart_aim::best_in_range_f64(
+                    self.value_from_x(pointer_pos.x - aim_radius, x_range.clone()),
+                    self.value_from_x(pointer_pos.x + aim_radius, x_range.clone()),
+                )
+            } else {
+                self.value_from_x(pointer_pos.x, x_range.clone())
+            };
+            self.set_value(new_value);
         }
 
         // Paint it:
@@ -350,7 +371,7 @@ impl<'a> Slider<'a> {
                 self.get_value() as f32 // Show full precision value on-hover. TODO: figure out f64 vs f32
             ));
             // let response = ui.interact(response.rect, kb_edit_id, Sense::click());
-            if response.clicked {
+            if response.clicked() {
                 ui.memory().request_kb_focus(kb_edit_id);
                 ui.memory().temp_edit_string = None; // Filled in next frame
             }

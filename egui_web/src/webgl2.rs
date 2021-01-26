@@ -8,7 +8,7 @@ use {
 
 use egui::{
     math::clamp,
-    paint::{Color32, PaintJobs, Texture, Triangles},
+    paint::{Color32, Texture},
     vec2,
 };
 
@@ -255,21 +255,20 @@ impl WebGl2Painter {
         }
     }
 
-    fn paint_triangles(&self, triangles: &Triangles) -> Result<(), JsValue> {
-        debug_assert!(triangles.is_valid());
-        let indices: Vec<u16> = triangles.indices.iter().map(|idx| *idx as u16).collect();
+    fn paint_mesh(&self, mesh: &egui::paint::Mesh16) -> Result<(), JsValue> {
+        debug_assert!(mesh.is_valid());
 
-        let mut positions: Vec<f32> = Vec::with_capacity(2 * triangles.vertices.len());
-        let mut tex_coords: Vec<f32> = Vec::with_capacity(2 * triangles.vertices.len());
-        for v in &triangles.vertices {
+        let mut positions: Vec<f32> = Vec::with_capacity(2 * mesh.vertices.len());
+        let mut tex_coords: Vec<f32> = Vec::with_capacity(2 * mesh.vertices.len());
+        for v in &mesh.vertices {
             positions.push(v.pos.x);
             positions.push(v.pos.y);
             tex_coords.push(v.uv.x);
             tex_coords.push(v.uv.y);
         }
 
-        let mut colors: Vec<u8> = Vec::with_capacity(4 * triangles.vertices.len());
-        for v in &triangles.vertices {
+        let mut colors: Vec<u8> = Vec::with_capacity(4 * mesh.vertices.len());
+        for v in &mesh.vertices {
             colors.push(v.color[0]);
             colors.push(v.color[1]);
             colors.push(v.color[2]);
@@ -283,9 +282,9 @@ impl WebGl2Painter {
         let indices_memory_buffer = wasm_bindgen::memory()
             .dyn_into::<WebAssembly::Memory>()?
             .buffer();
-        let indices_ptr = indices.as_ptr() as u32 / 2;
+        let indices_ptr = mesh.indices.as_ptr() as u32 / 2;
         let indices_array = js_sys::Int16Array::new(&indices_memory_buffer)
-            .subarray(indices_ptr, indices_ptr + indices.len() as u32);
+            .subarray(indices_ptr, indices_ptr + mesh.indices.len() as u32);
 
         gl.bind_buffer(Gl::ELEMENT_ARRAY_BUFFER, Some(&self.index_buffer));
         gl.buffer_data_with_array_buffer_view(
@@ -369,7 +368,12 @@ impl WebGl2Painter {
 
         // --------------------------------------------------------------------
 
-        gl.draw_elements_with_i32(Gl::TRIANGLES, indices.len() as i32, Gl::UNSIGNED_SHORT, 0);
+        gl.draw_elements_with_i32(
+            Gl::TRIANGLES,
+            mesh.indices.len() as i32,
+            Gl::UNSIGNED_SHORT,
+            0,
+        );
 
         Ok(())
     }
@@ -467,7 +471,11 @@ impl crate::Painter for WebGl2Painter {
         gl.clear(Gl::COLOR_BUFFER_BIT);
     }
 
-    fn paint_jobs(&mut self, jobs: PaintJobs, pixels_per_point: f32) -> Result<(), JsValue> {
+    fn paint_meshes(
+        &mut self,
+        clipped_meshes: Vec<egui::ClippedMesh>,
+        pixels_per_point: f32,
+    ) -> Result<(), JsValue> {
         self.upload_user_textures();
 
         let gl = &self.gl;
@@ -493,8 +501,8 @@ impl crate::Painter for WebGl2Painter {
         let u_sampler_loc = gl.get_uniform_location(&self.program, "u_sampler").unwrap();
         gl.uniform1i(Some(&u_sampler_loc), 0);
 
-        for (clip_rect, triangles) in jobs {
-            if let Some(gl_texture) = self.get_texture(triangles.texture_id) {
+        for egui::ClippedMesh(clip_rect, mesh) in clipped_meshes {
+            if let Some(gl_texture) = self.get_texture(mesh.texture_id) {
                 gl.bind_texture(Gl::TEXTURE_2D, Some(gl_texture));
 
                 let clip_min_x = pixels_per_point * clip_rect.min.x;
@@ -518,13 +526,13 @@ impl crate::Painter for WebGl2Painter {
                     clip_max_y - clip_min_y,
                 );
 
-                for triangles in triangles.split_to_u16() {
-                    self.paint_triangles(&triangles)?;
+                for mesh in mesh.split_to_u16() {
+                    self.paint_mesh(&mesh)?;
                 }
             } else {
                 crate::console_warn(format!(
                     "WebGL: Failed to find texture {:?}",
-                    triangles.texture_id
+                    mesh.texture_id
                 ));
             }
         }
