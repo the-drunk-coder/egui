@@ -681,7 +681,7 @@ impl Tessellator {
         text_style: super::TextStyle,
         colors: &BTreeMap<usize, Color32>,
 	default_color: Color32,
-        out: &mut Triangles,
+	out: &mut Mesh,
     ) {        	
 	galley.sanity_check();
 

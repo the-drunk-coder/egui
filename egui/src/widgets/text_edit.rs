@@ -701,38 +701,38 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
         }
 
         if enabled {
-            if let Some(mouse_pos) = ui.input().mouse.pos {
+            if let Some(pointer_pos) = ui.input().pointer.interact_pos() {
                 		
-                let cursor_at_mouse = galley.cursor_from_pos(mouse_pos - response.rect.min);
+                let cursor_at_pointer = galley.cursor_from_pos(pointer_pos - response.rect.min);
                 
-                if response.hovered && response.double_clicked {
+                if response.hovered && response.double_clicked() {
                     // Select word:
-                    let center = cursor_at_mouse;
+                    let center = cursor_at_pointer;
                     let ccursorp = select_word_at(text, center.ccursor);
                     state.cursorp = Some(CursorPair {
                         primary: galley.from_ccursor(ccursorp.primary),
                         secondary: galley.from_ccursor(ccursorp.secondary),
                     });
-                } else if response.hovered && ui.input().mouse.pressed {
+                } else if response.hovered && ui.input().pointer.any_pressed() {
                     ui.memory().request_kb_focus(id);
                     if ui.input().modifiers.shift {
                         if let Some(cursorp) = &mut state.cursorp {
-                            cursorp.primary = cursor_at_mouse;
+                            cursorp.primary = cursor_at_pointer;
                         } else {
-                            state.cursorp = Some(CursorPair::one(cursor_at_mouse));
+                            state.cursorp = Some(CursorPair::one(cursor_at_pointer));
                         }
                     } else {		
-                        state.cursorp = Some(CursorPair::one(cursor_at_mouse));			
+                        state.cursorp = Some(CursorPair::one(cursor_at_pointer));			
                     }
-                } else if ui.input().mouse.down && response.active {
+                } else if ui.input().pointer.any_down() && response.is_pointer_button_down_on() {
                     if let Some(cursorp) = &mut state.cursorp {
-                        cursorp.primary = cursor_at_mouse;
+                        cursorp.primary = cursor_at_pointer;
                     }
                 }
             }
         }
 
-        if ui.input().mouse.pressed && !response.hovered {
+        if ui.input().pointer.any_pressed() && !response.hovered {
             // User clicked somewhere else
             ui.memory().surrender_kb_focus(id);
         }
@@ -1043,7 +1043,8 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                         modifiers,
                     } => on_key_press(&mut cursorp, text, &galley, *key, modifiers),
 
-                    Event::Key { .. } => None,
+                    //Event::Key { .. } => None,
+		    _ => None,
                 };
 
                 if let Some(new_ccursorp) = did_mutate_text {
@@ -1114,7 +1115,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
             .multicolor_galley(response.rect.min, galley, text_style, egui_colors, default_color);
 
         ui.memory().text_edit.insert(id, state);
-
+	
         Response {
             lost_kb_focus: ui.memory().lost_kb_focus(id), // we may have lost it during the course of this function
             ..response

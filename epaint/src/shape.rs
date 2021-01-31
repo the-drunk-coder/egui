@@ -57,7 +57,6 @@ pub enum Shape {
 	colors: BTreeMap<usize, Color32>,
         default_color: Color32,
     },
-    Triangles(Triangles),
     Mesh(Mesh),
 }
 
@@ -203,9 +202,7 @@ impl Shape {
             }
 	    Shape::MulticolorText { pos, .. } => {
                 *pos += delta;
-            }
-            Shape::Triangles(triangles) => {
-                triangles.translate(delta);
+            }            
             Shape::Mesh(mesh) => {
                 mesh.translate(delta);
             }
