@@ -230,6 +230,26 @@ impl Response {
         let scroll_target = lerp(self.rect.y_range(), align.to_factor());
         self.ctx.frame_state().scroll_target = Some((scroll_target, align));
     }
+
+    /// Move the scroll to this position with the specified alignment.
+    ///
+    /// ```
+    /// # use egui::Align;
+    /// # let mut ui = &mut egui::Ui::__test();
+    /// egui::ScrollArea::auto_sized().show(ui, |ui| {
+    ///     for i in 0..1000 {
+    ///         let response = ui.button(format!("Button {}", i));
+    ///         if response.clicked() {
+    ///             response.scroll_to_me(Align::Center);
+    ///         }
+    ///     }
+    /// });
+    /// ```
+    pub fn scroll_to(&self, rect: Rect, align: Align) {
+        let scroll_target = lerp(rect.y_range(), align.to_factor());
+        self.ctx.frame_state().scroll_target = Some((scroll_target, align));
+	println!("scr targ: {:?}", scroll_target);
+    }
 }
 
 impl Response {

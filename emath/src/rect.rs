@@ -5,7 +5,7 @@ use crate::*;
 /// A rectangular region of space.
 ///
 /// Normally given in points, e.g. logical pixels.
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Rect {
     pub min: Pos2,

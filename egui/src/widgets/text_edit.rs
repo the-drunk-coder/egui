@@ -9,9 +9,15 @@ use crate::{
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))]
 pub(crate) struct State {
-    cursorp: Option<CursorPair>,
+    #[serde(skip)]
+    cursorp: Option<CursorPair>,    
+    #[serde(skip)]
+    y_offset: f32, // the currently displayed subsection of the galley    
+    #[serde(skip)]
     flash_cursorp: Option<CursorPair>,
+    #[serde(skip)]
     flash_alpha: u8,
+    #[serde(skip)]
     selection_toggle: bool,    
     #[cfg_attr(feature = "persistence", serde(skip))]
     undoer: Undoer<(CCursorPair, String)>,
@@ -555,6 +561,7 @@ pub struct LivecodeTextEdit<'t>  {
     text: &'t mut String,
     id: Option<Id>,
     id_source: Option<Id>,
+    reset_cursor: bool,
     text_style: Option<TextStyle>,
     text_color: Option<Color32>,    
     enabled: bool,
@@ -584,6 +591,7 @@ impl<'t> LivecodeTextEdit<'t>  {
             text,
             id: None,
             id_source: None,
+	    reset_cursor: false,
             text_style: None,
             text_color: None,
             enabled: true,
@@ -597,6 +605,11 @@ impl<'t> LivecodeTextEdit<'t>  {
 
     pub fn id(mut self, id: Id) -> Self {
         self.id = Some(id);
+        self
+    }
+
+    pub fn reset_cursor(mut self, reset: bool) -> Self {
+        self.reset_cursor = reset;
         self
     }
 
@@ -653,6 +666,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
             text,
             id,
             id_source,
+	    reset_cursor,
             text_style,
             text_color,
             enabled,
@@ -687,8 +701,12 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
             }
         });
         
-        let mut state = ui.memory().text_edit.get(&id).cloned().unwrap_or_default();
+        let mut state = ui.memory().text_edit.get(&id).cloned().unwrap_or_default();	
 
+	if reset_cursor {
+	    state.y_offset = 0.0;
+	}
+	
         let sense = if enabled {
             Sense::click_and_drag()
         } else {
@@ -1067,8 +1085,8 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
         }
 
         if ui.memory().has_kb_focus(id) {
-            if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, ui.style().visuals.selection.bg_fill);
+            if let Some(cursorp) = state.cursorp {		
+		paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, ui.style().visuals.selection.bg_fill);
                 paint_cursor_end(ui, response.rect.min, &galley, &cursorp.primary);
             }
 	    if let Some(cursorp) = state.flash_cursorp {
@@ -1078,7 +1096,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 		}
 	    }
         }
-
+	
         let default_color = text_color
             .or(ui.style().visuals.override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
@@ -1086,7 +1104,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 	
 	let code_colors = generate_lisp_color_map(text, function_names);
 	let mut egui_colors = BTreeMap::new();
-	
+			
 	for (k, v) in code_colors.iter() {
 	    //println!("{} {:?}", k,v );
 	    match v {
@@ -1110,12 +1128,53 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 		}
 	    }
 	}
+
+	if let Some(cursorp) = state.cursorp {
+	    
+	    let cursor_pos = galley.pos_from_cursor(&cursorp.primary);
+	    
+	    let mut screen_rect = ui.painter().clip_rect().clone();
+	    // not sure why the 32 pixel offset is nevessary, maybe because of the header ?
+	    screen_rect.min.y = screen_rect.min.y - 32.0 + state.y_offset;
+	    screen_rect.max.y = screen_rect.max.y - 32.0 + state.y_offset;
+	    	    
+	    let cursor_left_top = if screen_rect.min.y == 0.0 {
+		cursor_pos.min.y < screen_rect.min.y
+	    } else {
+		cursor_pos.min.y <= screen_rect.min.y
+	    };
+	    
+	    let cursor_left_bottom = cursor_pos.max.y >= screen_rect.max.y;
+	    let cursor_height = cursor_pos.max.y - cursor_pos.min.y;	    
+	    let is_cursor_visible = !cursor_left_top && !cursor_left_bottom;
+	    
+	    println!("screen rect: {} {} curs: {} {} {} left top: {} left bottom: {}, vis: {}",
+		     screen_rect.min.y,
+		     screen_rect.max.y,
+		     cursor_pos.min.y,
+		     cursor_pos.max.y,
+		     cursor_height,
+		     cursor_left_top,
+		     cursor_left_bottom,
+		     is_cursor_visible);
+	     
+			    
+	    if cursor_left_top {
+		state.y_offset -= cursor_height + 3.0; 
+		response.scroll_to(cursor_pos, Align::Max);		
+	    }
+	    
+	    if cursor_left_bottom {
+		state.y_offset += cursor_height + 3.0;
+		response.scroll_to(cursor_pos, Align::Min);
+	    }
+	}
 	
 	ui.painter()
             .multicolor_galley(response.rect.min, galley, text_style, egui_colors, default_color);
 
         ui.memory().text_edit.insert(id, state);
-	
+        		
         Response {
             lost_kb_focus: ui.memory().lost_kb_focus(id), // we may have lost it during the course of this function
             ..response

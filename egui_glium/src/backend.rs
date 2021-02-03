@@ -95,6 +95,7 @@ fn create_storage(_app_name: &str) -> Option<Box<dyn epi::Storage>> {
 fn create_storage(app_name: &str) -> Option<Box<dyn epi::Storage>> {
     if let Some(proj_dirs) = directories_next::ProjectDirs::from("", "", app_name) {
         let data_dir = proj_dirs.data_dir().to_path_buf();
+	println!("load state from {:?}", data_dir);
         if let Err(err) = std::fs::create_dir_all(&data_dir) {
             eprintln!(
                 "Saving disabled: Failed to create app path at {:?}: {}",
