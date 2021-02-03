@@ -138,7 +138,7 @@ impl ScrollArea {
             ),
             *ui.layout(),
         );
-        let mut content_clip_rect = inner_rect.expand(ui.style().visuals.clip_rect_margin);
+        let mut content_clip_rect = inner_rect.expand(ui.visuals().clip_rect_margin);
         content_clip_rect = content_clip_rect.intersect(ui.clip_rect());
         content_clip_rect.max.x = ui.clip_rect().max.x - current_scroll_bar_width; // Nice handling of forced resizing beyond the possible
         content_ui.set_clip_rect(content_clip_rect);
@@ -183,7 +183,7 @@ impl Prepared {
             let visible_range = top..=top + content_ui.clip_rect().height();
             let offset_y = scroll_y - lerp(visible_range, center_factor);
 
-            let mut spacing = ui.style().spacing.item_spacing.y;
+            let mut spacing = ui.spacing().item_spacing.y;
 
             // Depending on the alignment we need to add or subtract the spacing
             spacing *= remap(center_factor, 0.0..=1.0, -1.0..=1.0);
@@ -260,7 +260,7 @@ impl Prepared {
         if current_scroll_bar_width > 0.0 {
             let animation_t = current_scroll_bar_width / max_scroll_bar_width;
             // margin between contents and scroll bar
-            let margin = animation_t * ui.style().spacing.item_spacing.x;
+            let margin = animation_t * ui.spacing().item_spacing.x;
             let left = inner_rect.right() + margin;
             let right = outer_rect.right();
             let corner_radius:f32 = 0.5; // fix corner_radius
@@ -331,7 +331,7 @@ impl Prepared {
             ui.painter().add(paint::Shape::Rect {
                 rect: outer_scroll_rect,
                 corner_radius,
-                fill: ui.style().visuals.dark_bg_color,
+                fill: ui.visuals().extreme_bg_color,
                 stroke: Default::default(),
                 // fill: visuals.bg_fill,
                 // stroke: visuals.bg_stroke,
@@ -364,5 +364,5 @@ impl Prepared {
 }
 
 fn max_scroll_bar_width_with_margin(ui: &Ui) -> f32 {
-    ui.style().spacing.item_spacing.x + 12.0
+    ui.spacing().item_spacing.x + 12.0
 }

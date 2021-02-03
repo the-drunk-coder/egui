@@ -42,7 +42,7 @@ impl BarState {
 /// In the latter case you may want to wrap it in `Frame`.
 pub fn bar<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
     ui.horizontal(|ui| {
-        let mut style = ui.style().clone();
+        let mut style = (**ui.style()).clone();
         style.spacing.button_padding = vec2(2.0, 0.0);
         // style.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
         style.visuals.widgets.active.bg_stroke = Stroke::none();
@@ -53,7 +53,7 @@ pub fn bar<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Respo
         ui.set_style(style);
 
         // Take full width and fixed height:
-        let height = ui.style().spacing.interact_size.y;
+        let height = ui.spacing().interact_size.y;
         ui.set_min_size(vec2(ui.available_width(), height));
 
         add_contents(ui)
@@ -79,7 +79,7 @@ fn menu_impl<'c>(
     let mut button = Button::new(title);
 
     if bar_state.open_menu == Some(menu_id) {
-        button = button.fill(Some(ui.style().visuals.selection.bg_fill));
+        button = button.fill(Some(ui.visuals().selection.bg_fill));
     }
 
     let button_response = ui.add(button);
@@ -102,7 +102,7 @@ fn menu_impl<'c>(
 
         area.show(ui.ctx(), |ui| {
             frame.show(ui, |ui| {
-                let mut style = ui.style().clone();
+                let mut style = (**ui.style()).clone();
                 style.spacing.button_padding = vec2(2.0, 0.0);
                 // style.visuals.widgets.active.bg_fill = Color32::TRANSPARENT;
                 style.visuals.widgets.active.bg_stroke = Stroke::none();

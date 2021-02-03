@@ -253,15 +253,15 @@ impl<'t> Widget for TextEdit<'t> {
                 Shape::Rect {
                     rect: frame_rect,
                     corner_radius: visuals.corner_radius,
-                    // fill: ui.style().visuals.selection.bg_fill,
-                    fill: ui.style().visuals.dark_bg_color,
-                    stroke: ui.style().visuals.selection.stroke,
+                    // fill: ui.visuals().selection.bg_fill,
+                    fill: ui.visuals().extreme_bg_color,
+                    stroke: ui.visuals().selection.stroke,
                 }
             } else {
                 Shape::Rect {
                     rect: frame_rect,
                     corner_radius: visuals.corner_radius,
-                    fill: ui.style().visuals.dark_bg_color,
+                    fill: ui.visuals().extreme_bg_color,
                     stroke: visuals.bg_stroke, // TODO: we want to show something here, or a text-edit field doesn't "pop".
                 }
             };
@@ -298,7 +298,7 @@ impl<'t> TextEdit<'t> {
             font.layout_single_line(text.clone())
         };
 
-        let desired_width = desired_width.unwrap_or_else(|| ui.style().spacing.text_edit_width);
+        let desired_width = desired_width.unwrap_or_else(|| ui.spacing().text_edit_width);
         let desired_height = (desired_height_rows.at_least(1) as f32) * line_spacing;
         let desired_size = vec2(
             galley.size.x.max(desired_width.min(available_width)),
@@ -526,9 +526,9 @@ impl<'t> TextEdit<'t> {
         }
 
         let text_color = text_color
-            .or(ui.style().visuals.override_text_color)
-            //.unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
-            .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
+            .or(ui.visuals().override_text_color)
+            // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
+            .unwrap_or_else(|| ui.visuals().widgets.inactive.text_color());
         ui.painter()
             .galley(response.rect.min, galley, text_style, text_color);
 
@@ -1215,7 +1215,7 @@ fn paint_cursor_selection(ui: &mut Ui, pos: Pos2, galley: &Galley, cursorp: &Cur
 }
 
 fn paint_cursor_end(ui: &mut Ui, pos: Pos2, galley: &Galley, cursor: &Cursor) {
-    let stroke = ui.style().visuals.selection.stroke;
+    let stroke = ui.visuals().selection.stroke;
 
     let cursor_pos = galley.pos_from_cursor(cursor).translate(pos.to_vec2());
     let cursor_pos = cursor_pos.expand(1.5); // slightly above/below row
@@ -1225,7 +1225,7 @@ fn paint_cursor_end(ui: &mut Ui, pos: Pos2, galley: &Galley, cursor: &Cursor) {
 
     ui.painter().line_segment(
         [top, bottom],
-        (ui.style().visuals.text_cursor_width, stroke.color),
+        (ui.visuals().text_cursor_width, stroke.color),
     );
 
     if false {

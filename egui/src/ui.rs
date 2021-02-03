@@ -1,6 +1,6 @@
 // #![warn(missing_docs)]
 
-use std::{hash::Hash, sync::Arc};
+use std::hash::Hash;
 
 use crate::{
     color::*, containers::*, layout::*, mutex::MutexGuard, paint::text::Fonts, placer::Placer,
@@ -42,7 +42,7 @@ pub struct Ui {
     /// The `Style` (visuals, spacing, etc) of this ui.
     /// Commonly many `Ui`:s share the same `Style`.
     /// The `Ui` implements copy-on-write for this.
-    style: Arc<Style>,
+    style: std::sync::Arc<Style>,
 
     /// Handles the `Ui` size and the placement of new widgets.
     placer: Placer,
@@ -93,19 +93,43 @@ impl Ui {
     }
 
     /// Style options for this `Ui` and its children.
-    pub fn style(&self) -> &Style {
+    pub fn style(&self) -> &std::sync::Arc<Style> {
         &self.style
     }
 
     /// Mutably borrow internal `Style`.
     /// Changes apply to this `Ui` and its subsequent children.
     pub fn style_mut(&mut self) -> &mut Style {
-        Arc::make_mut(&mut self.style) // clone-on-write
+        std::sync::Arc::make_mut(&mut self.style) // clone-on-write
     }
 
     /// Changes apply to this `Ui` and its subsequent children.
-    pub fn set_style(&mut self, style: impl Into<Arc<Style>>) {
+    pub fn set_style(&mut self, style: impl Into<std::sync::Arc<Style>>) {
         self.style = style.into();
+    }
+
+    /// Short for `&self.style().spacing`
+    /// Spacing options for this `Ui` and its children.
+    pub fn spacing(&self) -> &crate::style::Spacing {
+        &self.style.spacing
+    }
+
+    /// Mutably borrow internal `Spacing`.
+    /// Changes apply to this `Ui` and its subsequent children.
+    pub fn spacing_mut(&mut self) -> &mut crate::style::Spacing {
+        &mut self.style_mut().spacing
+    }
+
+    /// Short for `&self.style().visuals`
+    /// visuals options for this `Ui` and its children.
+    pub fn visuals(&self) -> &crate::Visuals {
+        &self.style.visuals
+    }
+
+    /// Mutably borrow internal `visuals`.
+    /// Changes apply to this `Ui` and its subsequent children.
+    pub fn visuals_mut(&mut self) -> &mut crate::Visuals {
+        &mut self.style_mut().visuals
     }
 
     /// Get a reference to the parent [`CtxRef`].
@@ -287,6 +311,12 @@ impl Ui {
         self.set_max_width(width);
     }
 
+    /// Ensure we are big enough to contain the given x-coordinate.
+    /// This is sometimes useful to expand an ui to stretch to a certain place.
+    pub fn expand_to_include_x(&mut self, x: f32) {
+        self.placer.expand_to_include_x(x);
+    }
+
     // ------------------------------------------------------------------------
     // Layout related measures:
 
@@ -355,7 +385,7 @@ impl Ui {
     pub fn interact(&self, rect: Rect, id: Id, sense: Sense) -> Response {
         self.ctx().interact(
             self.clip_rect(),
-            self.style().spacing.item_spacing,
+            self.spacing().item_spacing,
             self.layer_id(),
             id,
             rect,
@@ -402,8 +432,11 @@ impl Ui {
     // Stuff that moves the cursor, i.e. allocates space in this ui!
 
     /// Advance the cursor (where the next widget is put) by this many points.
+    ///
     /// The direction is dependent on the layout.
     /// This is useful for creating some extra space between widgets.
+    ///
+    /// [`Self::min_rect`] will expand to contain the cursor.
     pub fn advance_cursor(&mut self, amount: f32) {
         self.placer.advance_cursor(amount);
     }
@@ -481,8 +514,8 @@ impl Ui {
 
         let rect = self.allocate_space_impl(desired_size);
 
-        let debug_expand_width = self.style().visuals.debug_expand_width;
-        let debug_expand_height = self.style().visuals.debug_expand_height;
+        let debug_expand_width = self.visuals().debug_expand_width;
+        let debug_expand_height = self.visuals().debug_expand_height;
 
         if (debug_expand_width && too_wide) || (debug_expand_height && too_high) {
             self.painter
@@ -517,7 +550,7 @@ impl Ui {
     /// Reserve this much space and move the cursor.
     /// Returns where to put the widget.
     fn allocate_space_impl(&mut self, desired_size: Vec2) -> Rect {
-        let item_spacing = self.style().spacing.item_spacing;
+        let item_spacing = self.spacing().item_spacing;
         let frame_rect = self.placer.next_space(desired_size, item_spacing);
         let widget_rect = self.placer.justify_or_align(frame_rect, desired_size);
 
@@ -534,7 +567,7 @@ impl Ui {
     }
 
     pub(crate) fn advance_cursor_after_rect(&mut self, rect: Rect) -> Id {
-        let item_spacing = self.style().spacing.item_spacing;
+        let item_spacing = self.spacing().item_spacing;
         self.placer.advance_after_rects(rect, rect, item_spacing);
 
         self.next_auto_id = self.next_auto_id.wrapping_add(1);
@@ -554,7 +587,7 @@ impl Ui {
         desired_size: Vec2,
         add_contents: impl FnOnce(&mut Self) -> R,
     ) -> (R, Response) {
-        let item_spacing = self.style().spacing.item_spacing;
+        let item_spacing = self.spacing().item_spacing;
         let outer_child_rect = self.placer.next_space(desired_size, item_spacing);
         let inner_child_rect = self.placer.justify_or_align(outer_child_rect, desired_size);
 
@@ -878,6 +911,11 @@ impl Ui {
 
 /// # Adding Containers / Sub-uis:
 impl Ui {
+    /// Put into a `Frame::group`, visually grouping the contents together
+    pub fn group<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> R {
+        crate::Frame::group(self.style()).show(self, add_contents)
+    }
+
     /// Create a child ui. You can use this to temporarily change the Style of a sub-region, for instance.
     pub fn wrap<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
         let child_rect = self.available_rect_before_wrap();
@@ -929,23 +967,34 @@ impl Ui {
             "You can only indent vertical layouts, found {:?}",
             self.layout()
         );
-        let indent = vec2(self.style().spacing.indent, 0.0);
+        let indent = vec2(self.spacing().indent, 0.0);
         let child_rect = Rect::from_min_max(self.cursor() + indent, self.max_rect().right_bottom()); // TODO: wrong for reversed layouts
         let mut child_ui = Self {
             id: self.id.with(id_source),
             ..self.child_ui(child_rect, *self.layout())
         };
         let ret = add_contents(&mut child_ui);
+
+        let end_with_horizontal_line = true;
+        if end_with_horizontal_line {
+            child_ui.advance_cursor(4.0);
+        }
+
         let size = child_ui.min_size();
 
-        // draw a grey line on the left to mark the indented section
-        let line_start = child_rect.min - indent * 0.5;
-        let line_start = self.painter().round_pos_to_pixels(line_start);
-        let line_end = pos2(line_start.x, line_start.y + size.y - 2.0);
-        self.painter.line_segment(
-            [line_start, line_end],
-            self.style().visuals.widgets.noninteractive.bg_stroke,
-        );
+        // draw a faint line on the left to mark the indented section
+        let stroke = self.visuals().widgets.noninteractive.bg_stroke;
+        let left_top = child_rect.min - indent * 0.5;
+        let left_top = self.painter().round_pos_to_pixels(left_top);
+        let left_bottom = pos2(left_top.x, left_top.y + size.y - 2.0);
+        let left_bottom = self.painter().round_pos_to_pixels(left_bottom);
+        self.painter.line_segment([left_top, left_bottom], stroke);
+        if end_with_horizontal_line {
+            let fudge = 2.0; // looks nicer with button rounding in collapsing headers
+            let right_bottom = pos2(child_ui.min_rect().right() - fudge, left_bottom.y);
+            self.painter
+                .line_segment([left_bottom, right_bottom], stroke);
+        }
 
         let response = self.allocate_response(indent + size, Sense::hover());
         (ret, response)
@@ -1016,10 +1065,10 @@ impl Ui {
             let font = &ui.fonts()[text_style];
             let row_height = font.row_height();
             let space_width = font.glyph_width(' ');
-            let style = ui.style_mut();
-            style.spacing.interact_size.y = row_height;
-            style.spacing.item_spacing.x = space_width;
-            style.spacing.item_spacing.y = 0.0;
+            let spacing = ui.spacing_mut();
+            spacing.interact_size.y = row_height;
+            spacing.item_spacing.x = space_width;
+            spacing.item_spacing.y = 0.0;
             ui.horizontal(add_contents).0
         })
     }
@@ -1060,10 +1109,10 @@ impl Ui {
             let font = &ui.fonts()[text_style];
             let row_height = font.row_height();
             let space_width = font.glyph_width(' ');
-            let style = ui.style_mut();
-            style.spacing.interact_size.y = row_height;
-            style.spacing.item_spacing.x = space_width;
-            style.spacing.item_spacing.y = 0.0;
+            let spacing = ui.spacing_mut();
+            spacing.interact_size.y = row_height;
+            spacing.item_spacing.x = space_width;
+            spacing.item_spacing.y = 0.0;
             ui.horizontal_wrapped(add_contents).0
         })
     }
@@ -1075,7 +1124,7 @@ impl Ui {
     ) -> (R, Response) {
         let initial_size = vec2(
             self.available_size_before_wrap_finite().x,
-            self.style().spacing.interact_size.y, // Assume there will be something interactive on the horizontal layout
+            self.spacing().interact_size.y, // Assume there will be something interactive on the horizontal layout
         );
 
         let layout = if self.placer.prefer_right_to_left() {
@@ -1123,7 +1172,7 @@ impl Ui {
         let mut child_ui = self.child_ui(self.available_rect_before_wrap(), layout);
         let ret = add_contents(&mut child_ui);
         let rect = child_ui.min_rect();
-        let item_spacing = self.style().spacing.item_spacing;
+        let item_spacing = self.spacing().item_spacing;
         self.placer.advance_after_rects(rect, rect, item_spacing);
         (ret, self.interact(rect, child_ui.id, Sense::hover()))
     }
@@ -1144,7 +1193,7 @@ impl Ui {
     /// Otherwise does nothing.
     pub fn end_row(&mut self) {
         self.placer
-            .end_row(self.style().spacing.item_spacing, &self.painter().clone());
+            .end_row(self.spacing().item_spacing, &self.painter().clone());
     }
 
     /// Temporarily split split an Ui into several columns.
@@ -1161,7 +1210,7 @@ impl Ui {
         F: FnOnce(&mut [Self]) -> R,
     {
         // TODO: ensure there is space
-        let spacing = self.style().spacing.item_spacing.x;
+        let spacing = self.spacing().item_spacing.x;
         let total_spacing = spacing * (num_columns as f32 - 1.0);
         let column_width = (self.available_width() - total_spacing) / (num_columns as f32);
         let top_left = self.cursor();

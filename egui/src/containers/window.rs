@@ -380,7 +380,7 @@ impl<'open> Window<'open> {
 }
 
 fn paint_resize_corner(ui: &mut Ui, outer_rect: Rect, stroke: Stroke) {
-    let corner_size = Vec2::splat(ui.style().visuals.resize_corner_size);
+    let corner_size = Vec2::splat(ui.visuals().resize_corner_size);
     let handle_offset = -Vec2::splat(2.0);
     let corner_rect =
         Rect::from_min_size(outer_rect.max - corner_size + handle_offset, corner_size);
@@ -608,7 +608,7 @@ fn paint_frame_interaction(
 ) {
     use paint::tessellator::path::add_circle_quadrant;
 
-    let cr = ui.style().visuals.window_corner_radius;
+    let cr = ui.visuals().window_corner_radius;
     let Rect { min, max } = rect;
 
     let mut points = Vec::new();
@@ -669,11 +669,11 @@ fn show_title_bar(
     let (title_bar, response) = ui.horizontal(|ui| {
         let height = title_label
             .font_height(ui.fonts(), ui.style())
-            .max(ui.style().spacing.interact_size.y);
+            .max(ui.spacing().interact_size.y);
         ui.set_min_height(height);
 
-        let item_spacing = ui.style().spacing.item_spacing;
-        let button_size = Vec2::splat(ui.style().spacing.icon_width);
+        let item_spacing = ui.spacing().item_spacing;
+        let button_size = Vec2::splat(ui.spacing().icon_width);
 
         let pad = (height - button_size.y) / 2.0; // calculated so that the icon is on the diagonal (if window padding is symmetrical)
 
@@ -739,7 +739,7 @@ impl TitleBar {
 
         // Always have inactive style for the window.
         // It is VERY annoying to e.g. change it when moving the window.
-        let style = ui.style().visuals.widgets.inactive;
+        let style = ui.visuals().widgets.inactive;
 
         self.title_label = self.title_label.text_color(style.fg_stroke.color);
 
@@ -753,11 +753,11 @@ impl TitleBar {
             // paint separator between title and content:
             let left = outer_rect.left();
             let right = outer_rect.right();
-            let y = content_response.rect.top() + ui.style().spacing.item_spacing.y * 0.5;
+            let y = content_response.rect.top() + ui.spacing().item_spacing.y * 0.5;
             // let y = lerp(self.rect.bottom()..=content_response.rect.top(), 0.5);
             ui.painter().line_segment(
                 [pos2(left, y), pos2(right, y)],
-                ui.style().visuals.widgets.noninteractive.bg_stroke,
+                ui.visuals().widgets.noninteractive.bg_stroke,
             );
         }
 
@@ -771,7 +771,7 @@ impl TitleBar {
     }
 
     fn close_button_ui(&self, ui: &mut Ui) -> Response {
-        let button_size = Vec2::splat(ui.style().spacing.icon_width);
+        let button_size = Vec2::splat(ui.spacing().icon_width);
         let pad = (self.rect.height() - button_size.y) / 2.0; // calculated so that the icon is on the diagonal (if window padding is symmetrical)
         let button_rect = Rect::from_min_size(
             pos2(

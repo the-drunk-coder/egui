@@ -266,7 +266,7 @@ fn x_range(rect: &Rect) -> RangeInclusive<f32> {
 impl<'a> Slider<'a> {
     /// Just the slider, no text
     fn allocate_slider_space(&self, ui: &mut Ui, height: f32) -> Response {
-        let desired_size = vec2(ui.style().spacing.slider_width, height);
+        let desired_size = vec2(ui.spacing().slider_width, height);
         ui.allocate_response(desired_size, Sense::click_and_drag())
     }
 
@@ -304,12 +304,12 @@ impl<'a> Slider<'a> {
                 rect: rail_rect,
                 corner_radius: rail_radius,
 
-                fill: ui.style().visuals.widgets.inactive.bg_fill,
+                fill: ui.visuals().widgets.inactive.bg_fill,
                 // fill: visuals.bg_fill,
-                // fill: ui.style().visuals.dark_bg_color,
+                // fill: ui.visuals().extreme_bg_color,
                 stroke: Default::default(),
                 // stroke: visuals.bg_stroke,
-                // stroke: ui.style().visuals.widgets.inactive.bg_stroke,
+                // stroke: ui.visuals().widgets.inactive.bg_stroke,
             });
 
             ui.painter().add(Shape::Circle {
@@ -323,9 +323,7 @@ impl<'a> Slider<'a> {
 
     fn label_ui(&mut self, ui: &mut Ui) {
         if let Some(label_text) = self.text.as_deref() {
-            let text_color = self
-                .text_color
-                .unwrap_or_else(|| ui.style().visuals.text_color());
+            let text_color = self.text_color.unwrap_or_else(|| ui.visuals().text_color());
 
             ui.add(
                 Label::new(label_text)
@@ -343,7 +341,7 @@ impl<'a> Slider<'a> {
         let value_text = self.format_value(aim_radius, x_range);
 
         if is_kb_editing {
-            let button_width = ui.style().spacing.interact_size.x;
+            let button_width = ui.spacing().interact_size.x;
             let mut value_text = ui.memory().temp_edit_string.take().unwrap_or(value_text);
             ui.add(
                 TextEdit::singleline(&mut value_text)
@@ -409,9 +407,7 @@ impl<'a> Widget for Slider<'a> {
     fn ui(mut self, ui: &mut Ui) -> Response {
         let text_style = TextStyle::Button;
         let font = &ui.fonts()[text_style];
-        let height = font
-            .row_height()
-            .at_least(ui.style().spacing.interact_size.y);
+        let height = font.row_height().at_least(ui.spacing().interact_size.y);
 
         if self.text.is_some() {
             ui.horizontal(|ui| {

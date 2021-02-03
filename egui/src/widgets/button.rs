@@ -96,14 +96,14 @@ impl Widget for Button {
             font.layout_multiline(text, ui.available_width())
         };
 
-        let mut button_padding = ui.style().spacing.button_padding;
+        let mut button_padding = ui.spacing().button_padding;
         if small {
             button_padding.y = 0.0;
         }
 
         let mut desired_size = galley.size + 2.0 * button_padding;
         if !small {
-            desired_size.y = desired_size.y.at_least(ui.style().spacing.interact_size.y);
+            desired_size.y = desired_size.y.at_least(ui.spacing().interact_size.y);
         }
 
         let (rect, response) = ui.allocate_at_least(desired_size, sense);
@@ -126,7 +126,7 @@ impl Widget for Button {
             }
 
             let text_color = text_color
-                .or(ui.style().visuals.override_text_color)
+                .or(ui.visuals().override_text_color)
                 .unwrap_or_else(|| visuals.text_color());
             ui.painter()
                 .galley(text_cursor, galley, text_style, text_color);
@@ -174,9 +174,9 @@ impl<'a> Widget for Checkbox<'a> {
         let text_style = TextStyle::Button;
         let font = &ui.fonts()[text_style];
 
-        let spacing = &ui.style().spacing;
+        let spacing = &ui.spacing();
         let icon_width = spacing.icon_width;
-        let icon_spacing = ui.style().spacing.icon_spacing;
+        let icon_spacing = ui.spacing().icon_spacing;
         let button_padding = spacing.button_padding;
         let total_extra = button_padding + vec2(icon_width + icon_spacing, 0.0) + button_padding;
 
@@ -200,7 +200,7 @@ impl<'a> Widget for Checkbox<'a> {
             rect.min.x + button_padding.x + icon_width + icon_spacing,
             rect.center().y - 0.5 * galley.size.y,
         );
-        let (small_icon_rect, big_icon_rect) = ui.style().spacing.icon_rectangles(rect);
+        let (small_icon_rect, big_icon_rect) = ui.spacing().icon_rectangles(rect);
         ui.painter().add(Shape::Rect {
             rect: big_icon_rect.expand(visuals.expansion),
             corner_radius: visuals.corner_radius,
@@ -217,12 +217,12 @@ impl<'a> Widget for Checkbox<'a> {
                     pos2(small_icon_rect.right(), small_icon_rect.top()),
                 ],
                 visuals.fg_stroke,
-                // ui.style().visuals.selection.stroke, // too much color
+                // ui.visuals().selection.stroke, // too much color
             ));
         }
 
         let text_color = text_color
-            .or(ui.style().visuals.override_text_color)
+            .or(ui.visuals().override_text_color)
             .unwrap_or_else(|| visuals.text_color());
         ui.painter()
             .galley(text_cursor, galley, text_style, text_color);
@@ -267,9 +267,9 @@ impl Widget for RadioButton {
         let text_style = TextStyle::Button;
         let font = &ui.fonts()[text_style];
 
-        let icon_width = ui.style().spacing.icon_width;
-        let icon_spacing = ui.style().spacing.icon_spacing;
-        let button_padding = ui.style().spacing.button_padding;
+        let icon_width = ui.spacing().icon_width;
+        let icon_spacing = ui.spacing().icon_spacing;
+        let button_padding = ui.spacing().button_padding;
         let total_extra = button_padding + vec2(icon_width + icon_spacing, 0.0) + button_padding;
 
         let single_line = ui.layout().is_horizontal();
@@ -280,7 +280,7 @@ impl Widget for RadioButton {
         };
 
         let mut desired_size = total_extra + galley.size;
-        desired_size = desired_size.at_least(ui.style().spacing.interact_size);
+        desired_size = desired_size.at_least(ui.spacing().interact_size);
         desired_size.y = desired_size.y.max(icon_width);
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click());
 
@@ -291,7 +291,7 @@ impl Widget for RadioButton {
 
         let visuals = ui.style().interact(&response);
 
-        let (small_icon_rect, big_icon_rect) = ui.style().spacing.icon_rectangles(rect);
+        let (small_icon_rect, big_icon_rect) = ui.spacing().icon_rectangles(rect);
 
         let painter = ui.painter();
 
@@ -307,13 +307,13 @@ impl Widget for RadioButton {
                 center: small_icon_rect.center(),
                 radius: small_icon_rect.width() / 3.0,
                 fill: visuals.fg_stroke.color, // Intentional to use stroke and not fill
-                // fill: ui.style().visuals.selection.stroke.color, // too much color
+                // fill: ui.visuals().selection.stroke.color, // too much color
                 stroke: Default::default(),
             });
         }
 
         let text_color = text_color
-            .or(ui.style().visuals.override_text_color)
+            .or(ui.visuals().override_text_color)
             .unwrap_or_else(|| visuals.text_color());
         painter.galley(text_cursor, galley, text_style, text_color);
         response
@@ -383,7 +383,7 @@ impl Widget for ImageButton {
             selected,
         } = self;
 
-        let button_padding = ui.style().spacing.button_padding;
+        let button_padding = ui.spacing().button_padding;
         let size = image.size() + 2.0 * button_padding;
         let (rect, response) = ui.allocate_exact_size(size, sense);
 
@@ -391,7 +391,7 @@ impl Widget for ImageButton {
             let visuals = ui.style().interact(&response);
 
             if selected {
-                let selection = ui.style().visuals.selection;
+                let selection = ui.visuals().selection;
                 ui.painter()
                     .rect(rect, 0.0, selection.bg_fill, selection.stroke);
             } else if frame {
