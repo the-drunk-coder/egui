@@ -7,6 +7,8 @@ use crate::{
     widgets::*, *,
 };
 
+// ----------------------------------------------------------------------------
+
 /// This is what you use to place widgets.
 ///
 /// Represents a region of the screen with a type of layout (horizontal or vertical).
@@ -17,7 +19,9 @@ use crate::{
 /// ui.label("A shorter and more convenient way to add a label.");
 /// ui.horizontal(|ui| {
 ///     ui.label("Add widgets");
-///     ui.button("on the same row!");
+///     if ui.button("on the same row!").clicked() {
+///         /* … */
+///     }
 /// });
 /// ```
 pub struct Ui {
@@ -46,6 +50,10 @@ pub struct Ui {
 
     /// Handles the `Ui` size and the placement of new widgets.
     placer: Placer,
+
+    /// If false we are unresponsive to input,
+    /// and all widgets will assume a gray style.
+    enabled: bool,
 }
 
 impl Ui {
@@ -60,6 +68,7 @@ impl Ui {
             painter: Painter::new(ctx, layer_id, clip_rect),
             style,
             placer: Placer::new(max_rect, Layout::default()),
+            enabled: true,
         }
     }
 
@@ -72,6 +81,7 @@ impl Ui {
             painter: self.painter.clone(),
             style: self.style.clone(),
             placer: Placer::new(max_rect, layout),
+            enabled: self.enabled,
         }
     }
 
@@ -99,35 +109,59 @@ impl Ui {
 
     /// Mutably borrow internal `Style`.
     /// Changes apply to this `Ui` and its subsequent children.
+    ///
+    /// To set the style of all `Ui`:s, use [`Context::set_style`].
+    ///
+    /// Example:
+    /// ```
+    /// # let ui = &mut egui::Ui::__test();
+    /// ui.style_mut().body_text_style = egui::TextStyle::Heading;
+    /// ```
     pub fn style_mut(&mut self) -> &mut Style {
         std::sync::Arc::make_mut(&mut self.style) // clone-on-write
     }
 
     /// Changes apply to this `Ui` and its subsequent children.
+    ///
+    /// To set the visuals of all `Ui`:s, use [`Context::set_visuals`].
     pub fn set_style(&mut self, style: impl Into<std::sync::Arc<Style>>) {
         self.style = style.into();
     }
 
-    /// Short for `&self.style().spacing`
-    /// Spacing options for this `Ui` and its children.
+    /// The current spacing options for this `Ui`.
+    /// Short for `ui.style().spacing`.
     pub fn spacing(&self) -> &crate::style::Spacing {
         &self.style.spacing
     }
 
     /// Mutably borrow internal `Spacing`.
     /// Changes apply to this `Ui` and its subsequent children.
+    ///
+    /// Example:
+    /// ```
+    /// # let ui = &mut egui::Ui::__test();
+    /// ui.spacing_mut().item_spacing = egui::vec2(10.0, 2.0);
+    /// ```
     pub fn spacing_mut(&mut self) -> &mut crate::style::Spacing {
         &mut self.style_mut().spacing
     }
 
-    /// Short for `&self.style().visuals`
-    /// visuals options for this `Ui` and its children.
+    /// The current visuals settings of this `Ui`.
+    /// Short for `ui.style().visuals`.
     pub fn visuals(&self) -> &crate::Visuals {
         &self.style.visuals
     }
 
     /// Mutably borrow internal `visuals`.
     /// Changes apply to this `Ui` and its subsequent children.
+    ///
+    /// To set the visuals of all `Ui`:s, use [`Context::set_visuals`].
+    ///
+    /// Example:
+    /// ```
+    /// # let ui = &mut egui::Ui::__test();
+    /// ui.visuals_mut().override_text_color = Some(egui::Color32::RED);
+    /// ```
     pub fn visuals_mut(&mut self) -> &mut crate::Visuals {
         &mut self.style_mut().visuals
     }
@@ -142,8 +176,54 @@ impl Ui {
         &self.painter
     }
 
+    /// If `false`, the `Ui` does not allow any interaction and
+    /// the widgets in it will draw with a gray look.
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Calling `set_enabled(false)` will cause the `Ui` to deny all future interaction
+    /// and all the widgets will draw with a gray look.
+    ///
+    /// Calling `set_enabled(true)` has no effect - it will NOT re-enable the `Ui` once disabled.
+    ///
+    /// ### Example
+    /// ```
+    /// # let ui = &mut egui::Ui::__test();
+    /// # let mut enabled = true;
+    /// ui.group(|ui|{
+    ///     ui.checkbox(&mut enabled, "Enable subsection");
+    ///     ui.set_enabled(enabled);
+    ///     if ui.button("Button that is not always clickable").clicked() {
+    ///         /* … */
+    ///     }
+    /// });
+    /// ```
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled &= enabled;
+        if self.enabled {
+            self.painter.set_fade_to_color(None);
+        } else {
+            self.painter
+                .set_fade_to_color(Some(self.visuals().window_fill()));
+        }
+    }
+
     pub fn layout(&self) -> &Layout {
         self.placer.layout()
+    }
+
+    /// Should text wrap in this `Ui`?
+    /// This is determined first by [`Style::wrap`], and then by the layout of this `Ui`.
+    pub fn wrap_text(&self) -> bool {
+        if let Some(wrap) = self.style.wrap {
+            wrap
+        } else if let Some(grid) = self.placer.grid() {
+            grid.wrap_text()
+        } else {
+            // In vertical layouts we wrap text, but in horizontal we keep going.
+            self.layout().is_vertical()
+        }
     }
 
     /// Create a painter for a sub-region of this Ui.
@@ -198,7 +278,7 @@ impl Ui {
 
 // ------------------------------------------------------------------------
 
-/// ## Sizes etc
+/// # Sizes etc
 impl Ui {
     /// Where and how large the `Ui` is already.
     /// All widgets that have been added ot this `Ui` fits within this rectangle.
@@ -390,6 +470,7 @@ impl Ui {
             id,
             rect,
             sense,
+            self.enabled,
         )
     }
 
@@ -440,7 +521,10 @@ impl Ui {
     pub fn advance_cursor(&mut self, amount: f32) {
         self.placer.advance_cursor(amount);
     }
+}
 
+/// # Allocating space: where do I put my widgets?
+impl Ui {
     /// Allocate space for a widget and check for interaction in the space.
     /// Returns a `Response` which contains a rectangle, id, and interaction info.
     ///
@@ -552,7 +636,7 @@ impl Ui {
     fn allocate_space_impl(&mut self, desired_size: Vec2) -> Rect {
         let item_spacing = self.spacing().item_spacing;
         let frame_rect = self.placer.next_space(desired_size, item_spacing);
-        let widget_rect = self.placer.justify_or_align(frame_rect, desired_size);
+        let widget_rect = self.placer.justify_and_align(frame_rect, desired_size);
 
         self.placer
             .advance_after_rects(frame_rect, widget_rect, item_spacing);
@@ -560,7 +644,8 @@ impl Ui {
         widget_rect
     }
 
-    /// Allocate a specific part of the ui.
+    /// Allocate a specific part of the `Ui‘.
+    /// Ignore the layout of the `Ui‘: just put my widget here!
     pub(crate) fn allocate_rect(&mut self, rect: Rect, sense: Sense) -> Response {
         let id = self.advance_cursor_after_rect(rect);
         self.interact(rect, id, sense)
@@ -586,10 +671,12 @@ impl Ui {
         &mut self,
         desired_size: Vec2,
         add_contents: impl FnOnce(&mut Self) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         let item_spacing = self.spacing().item_spacing;
         let outer_child_rect = self.placer.next_space(desired_size, item_spacing);
-        let inner_child_rect = self.placer.justify_or_align(outer_child_rect, desired_size);
+        let inner_child_rect = self
+            .placer
+            .justify_and_align(outer_child_rect, desired_size);
 
         let mut child_ui = self.child_ui(inner_child_rect, *self.layout());
         let ret = add_contents(&mut child_ui);
@@ -602,7 +689,30 @@ impl Ui {
         );
 
         let response = self.interact(final_child_rect, child_ui.id, Sense::hover());
-        (ret, response)
+        InnerResponse::new(ret, response)
+    }
+
+    /// Allocated the given rectangle and then adds content to that rectangle.
+    /// If the contents overflow, more space will be allocated.
+    /// When finished, the amount of space actually used (`min_rect`) will be allocated.
+    /// So you can request a lot of space and then use less.
+    pub fn allocate_ui_at_rect<R>(
+        &mut self,
+        max_rect: Rect,
+        add_contents: impl FnOnce(&mut Self) -> R,
+    ) -> InnerResponse<R> {
+        let mut child_ui = self.child_ui(max_rect, *self.layout());
+        let ret = add_contents(&mut child_ui);
+        let final_child_rect = child_ui.min_rect();
+
+        self.placer.advance_after_rects(
+            final_child_rect,
+            final_child_rect,
+            self.spacing().item_spacing,
+        );
+
+        let response = self.interact(final_child_rect, child_ui.id, Sense::hover());
+        InnerResponse::new(ret, response)
     }
 
     /// Convenience function to get a region to paint on
@@ -625,7 +735,7 @@ impl Ui {
     ///     }
     ///
     ///     if scroll_bottom {
-    ///         ui.scroll_to_cursor(Align::bottom());
+    ///         ui.scroll_to_cursor(Align::BOTTOM);
     ///     }
     /// });
     /// ```
@@ -653,6 +763,22 @@ impl Ui {
     /// ```
     pub fn add(&mut self, widget: impl Widget) -> Response {
         widget.ui(self)
+    }
+
+    /// Add a widget to this `Ui` with a given max size.
+    pub fn add_sized(&mut self, max_size: Vec2, widget: impl Widget) -> Response {
+        self.allocate_ui(max_size, |ui| {
+            ui.centered_and_justified(|ui| ui.add(widget)).inner
+        })
+        .inner
+    }
+
+    /// Add a widget to this `Ui` at a specific location (manual layout).
+    pub fn put(&mut self, max_rect: Rect, widget: impl Widget) -> Response {
+        self.allocate_ui_at_rect(max_rect, |ui| {
+            ui.centered_and_justified(|ui| ui.add(widget)).inner
+        })
+        .inner
     }
 
     /// Shortcut for `add(Label::new(text))`
@@ -711,20 +837,20 @@ impl Ui {
         self.add(TextEdit::multiline(text))
     }
 
-    /// Usage: `if ui.button("Click me").clicked() { ... }`
+    /// Usage: `if ui.button("Click me").clicked() { … }`
     ///
     /// Shortcut for `add(Button::new(text))`
-    #[must_use = "You should check if the user clicked this with `if ui.button(...).clicked() { ... } "]
+    #[must_use = "You should check if the user clicked this with `if ui.button(…).clicked() { … } "]
     pub fn button(&mut self, text: impl Into<String>) -> Response {
         self.add(Button::new(text))
     }
 
     /// A button as small as normal body text.
     ///
-    /// Usage: `if ui.small_button("Click me").clicked() { ... }`
+    /// Usage: `if ui.small_button("Click me").clicked() { … }`
     ///
     /// Shortcut for `add(Button::new(text).small())`
-    #[must_use = "You should check if the user clicked this with `if ui.small_button(...).clicked() { ... } "]
+    #[must_use = "You should check if the user clicked this with `if ui.small_button(…).clicked() { … } "]
     pub fn small_button(&mut self, text: impl Into<String>) -> Response {
         self.add(Button::new(text).small())
     }
@@ -736,6 +862,7 @@ impl Ui {
 
     /// Show a radio button.
     /// Often you want to use `ui.radio_value` instead.
+    #[must_use = "You should check if the user clicked this with `if ui.radio(…).clicked() { … } "]
     pub fn radio(&mut self, selected: bool, text: impl Into<String>) -> Response {
         self.add(RadioButton::new(selected, text))
     }
@@ -758,6 +885,7 @@ impl Ui {
     }
 
     /// Show a label which can be selected or not.
+    #[must_use = "You should check if the user clicked this with `if ui.selectable_label(…).clicked() { … } "]
     pub fn selectable_label(&mut self, checked: bool, text: impl Into<String>) -> Response {
         self.add(SelectableLabel::new(checked, text))
     }
@@ -920,13 +1048,13 @@ impl Ui {
     }
 
     /// Create a child ui. You can use this to temporarily change the Style of a sub-region, for instance.
-    pub fn wrap<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
+    pub fn wrap<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         let child_rect = self.available_rect_before_wrap();
         let mut child_ui = self.child_ui(child_rect, *self.layout());
         let ret = add_contents(&mut child_ui);
         let size = child_ui.min_size();
         let response = self.allocate_response(size, Sense::hover());
-        (ret, response)
+        InnerResponse::new(ret, response)
     }
 
     /// Redirect shapes to another paint layer.
@@ -934,7 +1062,7 @@ impl Ui {
         &mut self,
         layer_id: LayerId,
         add_contents: impl FnOnce(&mut Self) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         self.wrap(|ui| {
             ui.painter.set_layer_id(layer_id);
             add_contents(ui)
@@ -947,7 +1075,7 @@ impl Ui {
         desired_size: Vec2,
         add_contents: impl FnOnce(&mut Ui),
     ) -> Rect {
-        self.allocate_ui(desired_size, add_contents).1.rect
+        self.allocate_ui(desired_size, add_contents).response.rect
     }
 
     /// A `CollapsingHeader` that starts out collapsed.
@@ -964,7 +1092,7 @@ impl Ui {
         &mut self,
         id_source: impl Hash,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         assert!(
             self.layout().is_vertical(),
             "You can only indent vertical layouts, found {:?}",
@@ -1000,7 +1128,7 @@ impl Ui {
         }
 
         let response = self.allocate_response(indent + size, Sense::hover());
-        (ret, response)
+        InnerResponse::new(ret, response)
     }
 
     #[deprecated]
@@ -1050,7 +1178,7 @@ impl Ui {
     /// The returned `Response` will only have checked for mouse hover
     /// but can be used for tooltips (`on_hover_text`).
     /// It also contains the `Rect` used by the horizontal layout.
-    pub fn horizontal<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
+    pub fn horizontal<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         self.horizontal_with_main_wrap(false, add_contents)
     }
 
@@ -1063,7 +1191,7 @@ impl Ui {
         &mut self,
         text_style: TextStyle,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         self.wrap(|ui| {
             let font = &ui.fonts()[text_style];
             let row_height = font.row_height();
@@ -1072,7 +1200,7 @@ impl Ui {
             spacing.interact_size.y = row_height;
             spacing.item_spacing.x = space_width;
             spacing.item_spacing.y = 0.0;
-            ui.horizontal(add_contents).0
+            ui.horizontal(add_contents).inner
         })
     }
 
@@ -1092,7 +1220,7 @@ impl Ui {
     pub fn horizontal_wrapped<R>(
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         self.horizontal_with_main_wrap(true, add_contents)
     }
 
@@ -1107,7 +1235,7 @@ impl Ui {
         &mut self,
         text_style: TextStyle,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         self.wrap(|ui| {
             let font = &ui.fonts()[text_style];
             let row_height = font.row_height();
@@ -1116,7 +1244,7 @@ impl Ui {
             spacing.interact_size.y = row_height;
             spacing.item_spacing.x = space_width;
             spacing.item_spacing.y = 0.0;
-            ui.horizontal_wrapped(add_contents).0
+            ui.horizontal_wrapped(add_contents).inner
         })
     }
 
@@ -1124,7 +1252,7 @@ impl Ui {
         &mut self,
         main_wrap: bool,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         let initial_size = vec2(
             self.available_size_before_wrap_finite().x,
             self.spacing().interact_size.y, // Assume there will be something interactive on the horizontal layout
@@ -1137,12 +1265,14 @@ impl Ui {
         }
         .with_main_wrap(main_wrap);
 
-        self.allocate_ui(initial_size, |ui| ui.with_layout(layout, add_contents).0)
+        self.allocate_ui(initial_size, |ui| {
+            ui.with_layout(layout, add_contents).inner
+        })
     }
 
     /// Start a ui with vertical layout.
     /// Widgets will be left-justified.
-    pub fn vertical<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
+    pub fn vertical<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
         self.with_layout(Layout::top_down(Align::Min), add_contents)
     }
 
@@ -1151,7 +1281,7 @@ impl Ui {
     pub fn vertical_centered<R>(
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         self.with_layout(Layout::top_down(Align::Center), add_contents)
     }
 
@@ -1160,7 +1290,7 @@ impl Ui {
     pub fn vertical_centered_justified<R>(
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         self.with_layout(
             Layout::top_down(Align::Center).with_cross_justify(true),
             add_contents,
@@ -1171,13 +1301,24 @@ impl Ui {
         &mut self,
         layout: Layout,
         add_contents: impl FnOnce(&mut Self) -> R,
-    ) -> (R, Response) {
+    ) -> InnerResponse<R> {
         let mut child_ui = self.child_ui(self.available_rect_before_wrap(), layout);
-        let ret = add_contents(&mut child_ui);
+        let inner = add_contents(&mut child_ui);
         let rect = child_ui.min_rect();
         let item_spacing = self.spacing().item_spacing;
         self.placer.advance_after_rects(rect, rect, item_spacing);
-        (ret, self.interact(rect, child_ui.id, Sense::hover()))
+        InnerResponse::new(inner, self.interact(rect, child_ui.id, Sense::hover()))
+    }
+
+    /// This will make the next added widget centered and justified in the available space.
+    pub fn centered_and_justified<R>(
+        &mut self,
+        add_contents: impl FnOnce(&mut Self) -> R,
+    ) -> InnerResponse<R> {
+        self.with_layout(
+            Layout::centered_and_justified(Direction::TopDown),
+            add_contents,
+        )
     }
 
     pub(crate) fn set_grid(&mut self, grid: grid::GridLayout) {
@@ -1190,6 +1331,10 @@ impl Ui {
 
     pub(crate) fn is_grid(&self) -> bool {
         self.placer.is_grid()
+    }
+
+    pub(crate) fn grid(&self) -> Option<&grid::GridLayout> {
+        self.placer.grid()
     }
 
     /// Move to the next row in a grid layout or wrapping layout.
@@ -1226,7 +1371,7 @@ impl Ui {
                     pos2(pos.x + column_width, self.max_rect().right_bottom().y),
                 );
                 let mut column_ui =
-                    self.child_ui(child_rect, Layout::top_down_justified(Align::left()));
+                    self.child_ui(child_rect, Layout::top_down_justified(Align::LEFT));
                 column_ui.set_width(column_width);
                 column_ui
             })
@@ -1252,7 +1397,7 @@ impl Ui {
 
 // ----------------------------------------------------------------------------
 
-/// ## Debug stuff
+/// # Debug stuff
 impl Ui {
     /// Shows where the next widget is going to be placed
     pub fn debug_paint_cursor(&self) {

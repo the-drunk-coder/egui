@@ -68,6 +68,8 @@ impl Button {
 
     /// If you set this to `false`, the button will be grayed out and un-clickable.
     /// `enabled(false)` has the same effect as calling `sense(Sense::hover())`.
+    ///
+    /// This is a convenience for [`Ui::set_enabled`].
     pub fn enabled(mut self, enabled: bool) -> Self {
         if !enabled {
             self.sense = Sense::hover();
@@ -76,8 +78,8 @@ impl Button {
     }
 }
 
-impl Widget for Button {
-    fn ui(self, ui: &mut Ui) -> Response {
+impl Button {
+    fn enabled_ui(self, ui: &mut Ui) -> Response {
         let Button {
             text,
             text_color,
@@ -87,19 +89,19 @@ impl Widget for Button {
             small,
             frame,
         } = self;
-        let font = &ui.fonts()[text_style];
-
-        let single_line = ui.layout().is_horizontal();
-        let galley = if single_line {
-            font.layout_single_line(text)
-        } else {
-            font.layout_multiline(text, ui.available_width())
-        };
 
         let mut button_padding = ui.spacing().button_padding;
         if small {
             button_padding.y = 0.0;
         }
+        let total_extra = button_padding + button_padding;
+
+        let font = &ui.fonts()[text_style];
+        let galley = if ui.wrap_text() {
+            font.layout_multiline(text, ui.available_width() - total_extra.x)
+        } else {
+            font.layout_no_wrap(text)
+        };
 
         let mut desired_size = galley.size + 2.0 * button_padding;
         if !small {
@@ -133,6 +135,22 @@ impl Widget for Button {
         }
 
         response
+    }
+}
+
+impl Widget for Button {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let button_enabled = self.sense != Sense::hover();
+        if button_enabled || !ui.enabled() {
+            self.enabled_ui(ui)
+        } else {
+            // We need get a temporary disabled `Ui` to get that grayed out look:
+            ui.wrap(|ui| {
+                ui.set_enabled(false);
+                self.enabled_ui(ui)
+            })
+            .inner
+        }
     }
 }
 
@@ -180,11 +198,10 @@ impl<'a> Widget for Checkbox<'a> {
         let button_padding = spacing.button_padding;
         let total_extra = button_padding + vec2(icon_width + icon_spacing, 0.0) + button_padding;
 
-        let single_line = ui.layout().is_horizontal();
-        let galley = if single_line {
-            font.layout_single_line(text)
-        } else {
+        let galley = if ui.wrap_text() {
             font.layout_multiline(text, ui.available_width() - total_extra.x)
+        } else {
+            font.layout_no_wrap(text)
         };
 
         let mut desired_size = total_extra + galley.size;
@@ -272,11 +289,10 @@ impl Widget for RadioButton {
         let button_padding = ui.spacing().button_padding;
         let total_extra = button_padding + vec2(icon_width + icon_spacing, 0.0) + button_padding;
 
-        let single_line = ui.layout().is_horizontal();
-        let galley = if single_line {
-            font.layout_single_line(text)
-        } else {
+        let galley = if ui.wrap_text() {
             font.layout_multiline(text, ui.available_width() - total_extra.x)
+        } else {
+            font.layout_no_wrap(text)
         };
 
         let mut desired_size = total_extra + galley.size;

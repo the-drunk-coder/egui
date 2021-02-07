@@ -29,7 +29,11 @@ impl Widget for SelectableLabel {
         let button_padding = ui.spacing().button_padding;
         let total_extra = button_padding + button_padding;
 
-        let galley = font.layout_multiline(text, ui.available_width() - total_extra.x);
+        let galley = if ui.wrap_text() {
+            font.layout_multiline(text, ui.available_width() - total_extra.x)
+        } else {
+            font.layout_no_wrap(text)
+        };
 
         let mut desired_size = total_extra + galley.size;
         desired_size.y = desired_size.y.at_least(ui.spacing().interact_size.y);
@@ -44,16 +48,19 @@ impl Widget for SelectableLabel {
 
         if selected || response.hovered() {
             let rect = rect.expand(visuals.expansion);
+
             let fill = if selected {
                 ui.visuals().selection.bg_fill
             } else {
                 Default::default()
             };
+
             let stroke = if selected {
                 ui.visuals().selection.stroke
             } else {
                 visuals.bg_stroke
             };
+
             let corner_radius = 2.0;
             ui.painter().rect(rect, corner_radius, fill, stroke);
         }

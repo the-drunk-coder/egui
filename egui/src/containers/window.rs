@@ -38,9 +38,7 @@ impl<'open> Window<'open> {
     pub fn new(title: impl Into<String>) -> Self {
         let title = title.into();
         let area = Area::new(&title);
-        let title_label = Label::new(title)
-            .text_style(TextStyle::Heading)
-            .multiline(false);
+        let title_label = Label::new(title).text_style(TextStyle::Heading).wrap(false);
         Self {
             title_label,
             open: None,
@@ -69,6 +67,12 @@ impl<'open> Window<'open> {
     /// * If the close button is pressed, `*open` will be set to `false`.
     pub fn open(mut self, open: &'open mut bool) -> Self {
         self.open = Some(open);
+        self
+    }
+
+    /// If `false` the window will be grayed out and non-interactive.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.area = self.area.enabled(enabled);
         self
     }
 
@@ -241,8 +245,8 @@ impl<'open> Window<'open> {
         let is_maximized = !with_title_bar
             || collapsing_header::State::is_open(ctx, collapsing_id).unwrap_or_default();
         let possible = PossibleInteractions {
-            movable: area.is_movable(),
-            resizable: resize.is_resizable() && is_maximized,
+            movable: area.is_enabled() && area.is_movable(),
+            resizable: area.is_enabled() && resize.is_resizable() && is_maximized,
         };
 
         let area = area.movable(false); // We move it manually
@@ -329,7 +333,7 @@ impl<'open> Window<'open> {
                         }
                     })
                 })
-                .map(|ri| ri.1);
+                .map(|ir| ir.response);
 
             let outer_rect = frame.end(&mut area_content_ui);
 
@@ -666,7 +670,7 @@ fn show_title_bar(
     collapsing: &mut collapsing_header::State,
     collapsible: bool,
 ) -> TitleBar {
-    let (title_bar, response) = ui.horizontal(|ui| {
+    let inner_response = ui.horizontal(|ui| {
         let height = title_label
             .font_height(ui.fonts(), ui.style())
             .max(ui.spacing().interact_size.y);
@@ -705,14 +709,14 @@ fn show_title_bar(
             title_label,
             title_galley,
             min_rect,
-            rect: Rect::invalid(), // Will be filled in later
+            rect: Rect::NAN, // Will be filled in later
         }
     });
 
-    TitleBar {
-        rect: response.rect,
-        ..title_bar
-    }
+    let title_bar = inner_response.inner;
+    let rect = inner_response.response.rect;
+
+    TitleBar { rect, ..title_bar }
 }
 
 impl TitleBar {

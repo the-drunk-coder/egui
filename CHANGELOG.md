@@ -13,16 +13,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 * Add support for secondary and middle mouse buttons.
 * Add `Label` methods for code, strong, strikethrough, underline and italics.
-* Add `ui.group(|ui| { … })` to visually group some widgets within a frame
-* Text will now wrap at newlines, spaces, dashes, punctuation or in the middle of a words if necessary, in that order of priority.
+* Add `ui.group(|ui| { … })` to visually group some widgets within a frame.
+* Add `Ui` helpers for doing manual layout (`ui.put`, `ui.allocate_ui_at_rect` and more).
+* Add `ui.set_enabled(false)` to disable all widgets in a `Ui` (grayed out and non-interactive).
+* Add `TextEdit::hint_text` for showing a weak hint text when empty.
 * `egui::popup::popup_below_widget`: show a popup area below another widget.
 * Add `Slider::clamp_to_range(bool)`: if set, clamp the incoming and outgoing values to the slider range.
 * Add: `ui.spacing()`, `ui.spacing_mut()`, `ui.visuals()`, `ui.visuals_mut()`.
 * Add: `ctx.set_visuals()`.
+* You can now control text wrapping with `Style::wrap`.
+* Add `Grid::max_col_width`.
 
 ### Changed 🔧
 
-* `mouse` has be renamed `pointer` everywhere (to make it clear it includes touches too).
+* Text will now wrap at newlines, spaces, dashes, punctuation or in the middle of a words if necessary, in that order of priority.
+* Widgets will now always line break at `\n` characters.
+* Widgets will now more intelligently choose wether or not to wrap text.
+* `mouse` has been renamed `pointer` everywhere (to make it clear it includes touches too).
 * Most parts of `Response` are now methods, so `if ui.button("…").clicked {` is now `if ui.button("…").clicked() {`.
 * `Response::active` is now gone. You can use `response.dragged()` or `response.clicked()` instead.
 * Backend: pointer (mouse/touch) position and buttons are now passed to egui in the event stream.
@@ -34,6 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed 🐛
 
 * It is now possible to click widgets even when FPS is very low.
+* Tessellator: handle sharp path corners better (switch to bevel instead of miter joints for > 90°).
 
 
 ## 0.8.0 - 2021-01-17 - Grid layout & new visual style

@@ -51,11 +51,11 @@ impl Default for FrameState {
     fn default() -> Self {
         Self {
             used_ids: Default::default(),
-            available_rect: Rect::invalid(),
-            unused_rect: Rect::invalid(),
-            used_by_panels: Rect::invalid(),
+            available_rect: Rect::NAN,
+            unused_rect: Rect::NAN,
+            used_by_panels: Rect::NAN,
             tooltip_rect: None,
-            scroll_delta: Vec2::zero(),
+            scroll_delta: Vec2::ZERO,
             scroll_target: None,
         }
     }
@@ -76,7 +76,7 @@ impl FrameState {
         used_ids.clear();
         *available_rect = input.screen_rect();
         *unused_rect = input.screen_rect();
-        *used_by_panels = Rect::nothing();
+        *used_by_panels = Rect::NOTHING;
         *tooltip_rect = None;
         *scroll_delta = input.scroll_delta;
         *scroll_target = None;
@@ -118,7 +118,7 @@ impl FrameState {
     pub(crate) fn allocate_central_panel(&mut self, panel_rect: Rect) {
         // Note: we do not shrink `available_rect`, because
         // we allow windows to cover the CentralPanel.
-        self.unused_rect = Rect::nothing(); // Nothing left unused after this
+        self.unused_rect = Rect::NOTHING; // Nothing left unused after this
         self.used_by_panels = self.used_by_panels.union(panel_rect);
     }
 }
@@ -218,6 +218,7 @@ impl CtxRef {
     // ---------------------------------------------------------------------
 
     /// Use `ui.interact` instead
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn interact(
         &self,
         clip_rect: Rect,
@@ -226,6 +227,7 @@ impl CtxRef {
         id: Id,
         rect: Rect,
         sense: Sense,
+        enabled: bool,
     ) -> Response {
         let gap = 0.5; // Just to make sure we don't accidentally hover two things at once (a small eps should be sufficient).
         let interact_rect = rect.expand2(
@@ -234,7 +236,7 @@ impl CtxRef {
                 .at_most(Vec2::splat(5.0)),
         ); // make it easier to click
         let hovered = self.rect_contains_pointer(layer_id, clip_rect.intersect(interact_rect));
-        self.interact_with_hovered(layer_id, id, rect, sense, hovered)
+        self.interact_with_hovered(layer_id, id, rect, sense, enabled, hovered)
     }
 
     /// You specify if a thing is hovered, and the function gives a `Response`.
@@ -244,8 +246,11 @@ impl CtxRef {
         id: Id,
         rect: Rect,
         sense: Sense,
+        enabled: bool,
         hovered: bool,
     ) -> Response {
+        let hovered = hovered && enabled; // can't even hover disabled widgets
+
         let has_kb_focus = self.memory().has_kb_focus(id);
         let lost_kb_focus = self.memory().lost_kb_focus(id);
 
@@ -255,6 +260,7 @@ impl CtxRef {
             id,
             rect,
             sense,
+            enabled,
             hovered,
             clicked: Default::default(),
             double_clicked: Default::default(),
@@ -266,7 +272,7 @@ impl CtxRef {
             lost_kb_focus,
         };
 
-        if sense == Sense::hover() || !layer_id.allow_interaction() {
+        if !enabled || sense == Sense::hover() || !layer_id.allow_interaction() {
             // Not interested or allowed input:
             return response;
         }
@@ -452,17 +458,27 @@ impl Context {
         self.memory().options.font_definitions = font_definitions;
     }
 
-    /// The [`Style`] used by all new windows, panels etc.
+    /// The [`Style`] used by all subsequent windows, panels etc.
     pub fn style(&self) -> Arc<Style> {
         self.memory().options.style.clone()
     }
 
     /// The [`Style`] used by all new windows, panels etc.
+    ///
+    /// Example:
+    /// ```
+    /// # let mut ctx = egui::CtxRef::default();
+    /// let mut style: egui::Style = (*ctx.style()).clone();
+    /// style.spacing.item_spacing = egui::vec2(10.0, 20.0);
+    /// ctx.set_style(style);
+    /// ```
     pub fn set_style(&self, style: impl Into<Arc<Style>>) {
         self.memory().options.style = style.into();
     }
 
-    /// The [`Visuals`] used by all new windows, panels etc.
+    /// The [`Visuals`] used by all subsequent windows, panels etc.
+    ///
+    /// You can also use [`Ui::visuals_mut`] to change the visuals of a single [`Ui`].
     ///
     /// Example:
     /// ```

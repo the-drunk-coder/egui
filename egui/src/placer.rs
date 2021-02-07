@@ -27,6 +27,10 @@ impl Placer {
         }
     }
 
+    pub(crate) fn grid(&self) -> Option<&grid::GridLayout> {
+        self.grid.as_ref()
+    }
+
     pub(crate) fn is_grid(&self) -> bool {
         self.grid.is_some()
     }
@@ -98,7 +102,7 @@ impl Placer {
     /// Returns where to put the next widget that is of the given size.
     /// The returned `frame_rect` will always be justified along the cross axis.
     /// This is what you then pass to `advance_after_rects`.
-    /// Use `justify_or_align` to get the inner `widget_rect`.
+    /// Use `justify_and_align` to get the inner `widget_rect`.
     pub(crate) fn next_space(&self, child_size: Vec2, item_spacing: Vec2) -> Rect {
         if let Some(grid) = &self.grid {
             grid.next_cell(self.region.cursor, child_size)
@@ -109,11 +113,11 @@ impl Placer {
     }
 
     /// Apply justify or alignment after calling `next_space`.
-    pub(crate) fn justify_or_align(&self, rect: Rect, child_size: Vec2) -> Rect {
+    pub(crate) fn justify_and_align(&self, rect: Rect, child_size: Vec2) -> Rect {
         if let Some(grid) = &self.grid {
-            grid.justify_or_align(rect, child_size)
+            grid.justify_and_align(rect, child_size)
         } else {
-            self.layout.justify_or_align(rect, child_size)
+            self.layout.justify_and_align(rect, child_size)
         }
     }
 
@@ -127,7 +131,7 @@ impl Placer {
         self.layout.advance_cursor(&mut self.region.cursor, amount);
 
         self.region
-            .expand_to_include_rect(Rect::from_min_size(self.cursor(), Vec2::zero()));
+            .expand_to_include_rect(Rect::from_min_size(self.cursor(), Vec2::ZERO));
     }
 
     /// Advance cursor after a widget was added to a specific rectangle

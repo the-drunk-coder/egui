@@ -45,6 +45,7 @@ pub struct Area {
     pub(crate) id: Id,
     movable: bool,
     interactable: bool,
+    enabled: bool,
     order: Order,
     default_pos: Option<Pos2>,
     new_pos: Option<Pos2>,
@@ -56,6 +57,7 @@ impl Area {
             id: Id::new(id_source),
             movable: true,
             interactable: true,
+            enabled: true,
             order: Order::Middle,
             default_pos: None,
             new_pos: None,
@@ -71,6 +73,15 @@ impl Area {
         LayerId::new(self.order, self.id)
     }
 
+    /// If false, no content responds to click
+    /// and widgets will be shown grayed out.
+    /// You won't be able to move the window.
+    /// Default: `true`.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
     /// moveable by dragging the area?
     pub fn movable(mut self, movable: bool) -> Self {
         self.movable = movable;
@@ -78,8 +89,12 @@ impl Area {
         self
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     pub fn is_movable(&self) -> bool {
-        self.movable
+        self.movable && self.enabled
     }
 
     /// If false, clicks goes straight through to what is behind us.
@@ -121,6 +136,7 @@ pub(crate) struct Prepared {
     layer_id: LayerId,
     state: State,
     movable: bool,
+    enabled: bool,
 }
 
 impl Area {
@@ -130,6 +146,7 @@ impl Area {
             movable,
             order,
             interactable,
+            enabled,
             default_pos,
             new_pos,
         } = self;
@@ -139,7 +156,7 @@ impl Area {
         let state = ctx.memory().areas.get(id).cloned();
         let mut state = state.unwrap_or_else(|| State {
             pos: default_pos.unwrap_or_else(|| automatic_area_position(ctx)),
-            size: Vec2::zero(),
+            size: Vec2::ZERO,
             interactable,
         });
         state.pos = new_pos.unwrap_or(state.pos);
@@ -149,6 +166,7 @@ impl Area {
             layer_id,
             state,
             movable,
+            enabled,
         }
     }
 
@@ -198,7 +216,7 @@ impl Prepared {
     }
 
     pub(crate) fn content_ui(&self, ctx: &CtxRef) -> Ui {
-        let max_rect = Rect::from_min_size(self.state.pos, Vec2::infinity());
+        let max_rect = Rect::from_min_size(self.state.pos, Vec2::INFINITY);
         let shadow_radius = ctx.style().visuals.window_shadow.extrusion; // hacky
         let mut clip_rect = max_rect
             .expand(ctx.style().visuals.clip_rect_margin)
@@ -214,13 +232,15 @@ impl Prepared {
             clip_rect = clip_rect.intersect(central_area);
         }
 
-        Ui::new(
+        let mut ui = Ui::new(
             ctx.clone(),
             self.layer_id,
             self.layer_id.id,
             max_rect,
             clip_rect,
-        )
+        );
+        ui.set_enabled(self.enabled);
+        ui
     }
 
     #[allow(clippy::needless_pass_by_value)] // intentional to swallow up `content_ui`.
@@ -229,6 +249,7 @@ impl Prepared {
             layer_id,
             mut state,
             movable,
+            enabled,
         } = self;
 
         state.size = content_ui.min_rect().size();
@@ -241,12 +262,13 @@ impl Prepared {
         };
 
         let move_response = ctx.interact(
-            Rect::everything(),
+            Rect::EVERYTHING,
             ctx.style().spacing.item_spacing,
             layer_id,
             interact_id,
             state.rect(),
             sense,
+            enabled,
         );
 
         if move_response.dragged() && movable {

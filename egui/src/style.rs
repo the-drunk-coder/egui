@@ -17,6 +17,11 @@ pub struct Style {
     /// Default `TextStyle` for normal text (i.e. for `Label` and `TextEdit`).
     pub body_text_style: TextStyle,
 
+    /// If set, labels buttons wtc will use this to determine whether or not
+    /// to wrap the text at the right edge of the `Ui` they are in.
+    /// By default this is `None`.
+    pub wrap: Option<bool>,
+
     pub spacing: Spacing,
     pub interaction: Interaction,
     pub visuals: Visuals,
@@ -113,6 +118,9 @@ pub struct Interaction {
 pub struct Visuals {
     /// If true, the visuals are overall dark with light text.
     /// If false, the visuals are overall light with dark text.
+    ///
+    /// NOTE: setting this does very little by itself,
+    /// this is more to provide a convenient summary of the rest of the settings.
     pub dark_mode: bool,
 
     /// Override default text color for all text.
@@ -176,11 +184,19 @@ impl Visuals {
     }
 
     pub fn weak_text_color(&self) -> Color32 {
-        self.widgets.disabled.text_color()
+        crate::color::tint_color_towards(self.text_color(), self.window_fill())
     }
 
     pub fn strong_text_color(&self) -> Color32 {
         self.widgets.active.text_color()
+    }
+
+    pub fn window_fill(&self) -> Color32 {
+        self.widgets.noninteractive.bg_fill
+    }
+
+    pub fn window_stroke(&self) -> Stroke {
+        self.widgets.noninteractive.bg_stroke
     }
 }
 
@@ -197,15 +213,16 @@ pub struct Selection {
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))]
 pub struct Widgets {
-    /// For a non-interactive widget
+    /// The style of a widget that you cannot interact with.
+    /// * `noninteractive.bg_stroke` is the outline of windows.
+    /// * `noninteractive.bg_fill` is the background color of windows.
+    /// * `noninteractive.fg_stroke` is the normal text color.
     pub noninteractive: WidgetVisuals,
-    /// For an otherwise interactive widget that has been disabled
-    pub disabled: WidgetVisuals,
-    /// For an interactive widget that is "resting"
+    /// The style of an interactive widget, such as a button, at rest.
     pub inactive: WidgetVisuals,
-    /// For an interactive widget that is being hovered
+    /// The style of an interactive widget while you hover it.
     pub hovered: WidgetVisuals,
-    /// For an interactive widget that is being interacted with
+    /// The style of an interactive widget as you are clicking or dragging it.
     pub active: WidgetVisuals,
 }
 
@@ -213,8 +230,6 @@ impl Widgets {
     pub fn style(&self, response: &Response) -> &WidgetVisuals {
         if response.is_pointer_button_down_on() || response.has_kb_focus {
             &self.active
-        } else if response.sense == crate::Sense::hover() {
-            &self.disabled
         } else if response.hovered() {
             &self.hovered
         } else {
@@ -227,7 +242,7 @@ impl Widgets {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 pub struct WidgetVisuals {
-    /// Background color of widget
+    /// Background color of widget.
     pub bg_fill: Color32,
 
     /// For surrounding rectangle of things that need it,
@@ -235,13 +250,13 @@ pub struct WidgetVisuals {
     /// Should maybe be called `frame_stroke`.
     pub bg_stroke: Stroke,
 
-    /// Button frames etc
+    /// Button frames etc.
     pub corner_radius: f32,
 
-    /// Stroke and text color of the interactive part of a component (button text, slider grab, check-mark, ...)
+    /// Stroke and text color of the interactive part of a component (button text, slider grab, check-mark, ...).
     pub fg_stroke: Stroke,
 
-    /// Make the frame this much larger
+    /// Make the frame this much larger.
     pub expansion: f32,
 }
 
@@ -257,6 +272,7 @@ impl Default for Style {
     fn default() -> Self {
         Self {
             body_text_style: TextStyle::Body,
+            wrap: None,
             spacing: Spacing::default(),
             interaction: Interaction::default(),
             visuals: Visuals::default(),
@@ -292,6 +308,7 @@ impl Default for Interaction {
 }
 
 impl Visuals {
+    /// Default dark theme.
     pub fn dark() -> Self {
         Self {
             dark_mode: true,
@@ -312,6 +329,7 @@ impl Visuals {
         }
     }
 
+    /// Default light theme.
     pub fn light() -> Self {
         Self {
             dark_mode: false,
@@ -360,18 +378,11 @@ impl Widgets {
     pub fn dark() -> Self {
         Self {
             noninteractive: WidgetVisuals {
+                bg_fill: Color32::from_gray(30), // window background
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(65)), // window outline
-                bg_fill: Color32::from_gray(30),                     // window background
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(160)), // text color
                 corner_radius: 4.0,
-                expansion: 0.0,
-            },
-            disabled: WidgetVisuals {
-                bg_fill: Color32::BLACK, // Should look grayed out
-                bg_stroke: Stroke::new(1.0, Color32::from_gray(70)),
-                fg_stroke: Stroke::new(1.0, Color32::from_gray(140)), // Should look grayed out
-                corner_radius: 4.0,
-                expansion: 0.0,
+                expansion: 0.0,                            		
             },
             inactive: WidgetVisuals {
                 bg_fill: Color32::BLACK,
@@ -400,16 +411,9 @@ impl Widgets {
     pub fn light() -> Self {
         Self {
             noninteractive: WidgetVisuals {
+                bg_fill: Color32::from_gray(220), // window background
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(180)), // window outline
-                bg_fill: Color32::from_gray(220),                     // window background
-                fg_stroke: Stroke::new(1.0, Color32::from_gray(70)),  // text color
-                corner_radius: 4.0,
-                expansion: 0.0,
-            },
-            disabled: WidgetVisuals {
-                bg_fill: Color32::from_gray(215), // Should look grayed out
-                bg_stroke: Stroke::new(1.0, Color32::from_gray(185)),
-                fg_stroke: Stroke::new(1.0, Color32::from_gray(115)), // Should look grayed out
+                fg_stroke: Stroke::new(1.0, Color32::from_gray(70)), // normal text color
                 corner_radius: 4.0,
                 expansion: 0.0,
             },
@@ -452,6 +456,7 @@ impl Style {
     pub fn ui(&mut self, ui: &mut crate::Ui) {
         let Self {
             body_text_style,
+            wrap: _,
             spacing,
             interaction,
             visuals,
@@ -527,28 +532,23 @@ impl Widgets {
             active,
             hovered,
             inactive,
-            disabled,
             noninteractive,
         } = self;
 
         ui.collapsing("noninteractive", |ui| {
-            ui.label("The style of something that you cannot interact with.");
+            ui.label("The style of a widget that you cannot interact with.");
             noninteractive.ui(ui)
         });
-        ui.collapsing("interactive & disabled", |ui| {
-            ui.label("The style of a disabled button.");
-            disabled.ui(ui)
-        });
         ui.collapsing("interactive & inactive", |ui| {
-            ui.label("The style of a widget, such as a button, at rest.");
+            ui.label("The style of an interactive widget, such as a button, at rest.");
             inactive.ui(ui)
         });
         ui.collapsing("interactive & hovered", |ui| {
-            ui.label("The style of a widget while you hover it.");
+            ui.label("The style of an interactive widget while you hover it.");
             hovered.ui(ui)
         });
         ui.collapsing("interactive & active", |ui| {
-            ui.label("The style of a widget as you are clicking or dragging it.");
+            ui.label("The style of an interactive widget as you are clicking or dragging it.");
             active.ui(ui)
         });
 
@@ -709,7 +709,7 @@ fn ui_slider_vec2(
         ui.add(Slider::f32(&mut value.y, range.clone()).text("h"));
         ui.label(text);
     })
-    .1
+    .response
 }
 
 fn ui_color(ui: &mut Ui, srgba: &mut Color32, text: &str) {

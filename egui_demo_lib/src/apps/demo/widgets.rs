@@ -112,7 +112,7 @@ impl Widgets {
             ui.label(format!("≈ {:.3}τ", self.angle / std::f32::consts::TAU))
                 .on_hover_text("Each τ represents one turn (τ = 2π)");
         })
-        .1
+        .response
         .on_hover_text("The angle is stored in radians, but presented in degrees");
 
         ui.separator();
@@ -134,8 +134,5 @@ impl Widgets {
 
         ui.label("Multiline text input:");
         ui.text_edit_multiline(&mut self.multiline_text_input);
-
-        ui.separator();
-        super::toggle_switch::demo(ui, &mut self.toggle_switch);
     }
 }

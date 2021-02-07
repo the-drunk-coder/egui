@@ -50,7 +50,7 @@ impl Widget for &epaint::Texture {
                 ui.painter().add(Shape::mesh(mesh));
             });
         })
-        .1
+        .response
     }
 }
 
@@ -67,7 +67,7 @@ impl Widget for &mut epaint::text::FontDefinitions {
             }
             crate::reset_button(ui, self);
         })
-        .1
+        .response
     }
 }
 
@@ -111,12 +111,12 @@ impl Widget for &epaint::stats::PaintStats {
             // ui.label("Total:");
             // ui.label(self.total().format(""));
         })
-        .1
+        .response
     }
 }
 
 pub fn label(ui: &mut Ui, alloc_info: &epaint::stats::AllocInfo, what: &str) -> Response {
-    ui.add(Label::new(alloc_info.format(what)).multiline(false))
+    ui.add(Label::new(alloc_info.format(what)).wrap(false))
 }
 
 impl Widget for &mut epaint::TessellationOptions {
@@ -139,6 +139,6 @@ impl Widget for &mut epaint::TessellationOptions {
             ui.checkbox(debug_paint_clip_rects, "Paint clip rectangles (debug)");
             ui.checkbox(debug_paint_text_rects, "Paint text bounds (debug)");
         })
-        .1
+        .response
     }
 }

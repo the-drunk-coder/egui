@@ -29,7 +29,7 @@ pub fn combo_box_with_label(
         response |= ui.add(label);
         response
     })
-    .0
+    .inner
 }
 
 /// A drop-down selection menu.
@@ -64,7 +64,7 @@ pub fn combo_box(
 
         let text_style = TextStyle::Button;
         let font = &ui.fonts()[text_style];
-        let galley = font.layout_single_line(selected.into());
+        let galley = font.layout_no_wrap(selected.into());
 
         let width = galley.size.x + ui.spacing().item_spacing.x + icon_size.x;
         let width = width.at_least(full_minimum_width);

@@ -40,7 +40,7 @@ impl BarState {
 /// The menu bar goes well in `TopPanel`,
 /// but can also be placed in a `Window`.
 /// In the latter case you may want to wrap it in `Frame`.
-pub fn bar<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> (R, Response) {
+pub fn bar<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
     ui.horizontal(|ui| {
         let mut style = (**ui.style()).clone();
         style.spacing.button_padding = vec2(2.0, 0.0);
@@ -111,7 +111,7 @@ fn menu_impl<'c>(
                 style.visuals.widgets.inactive.bg_fill = Color32::TRANSPARENT;
                 style.visuals.widgets.inactive.bg_stroke = Stroke::none();
                 ui.set_style(style);
-                ui.with_layout(Layout::top_down_justified(Align::left()), add_contents);
+                ui.with_layout(Layout::top_down_justified(Align::LEFT), add_contents);
             })
         });
 

@@ -29,6 +29,10 @@ pub struct Response {
     /// The senses (click and/or drag) that the widget was interested in (if any).
     pub sense: Sense,
 
+    /// Was the widget enabled?
+    /// If `false`, there was no interaction attempted (not even hover).
+    pub(crate) enabled: bool,
+
     // OUT:
     /// The pointer is hovering above this widget or the widget was clicked/tapped this frame.
     pub(crate) hovered: bool,
@@ -68,6 +72,7 @@ impl std::fmt::Debug for Response {
             id,
             rect,
             sense,
+            enabled,
             hovered,
             clicked,
             double_clicked,
@@ -83,6 +88,7 @@ impl std::fmt::Debug for Response {
             .field("id", id)
             .field("rect", rect)
             .field("sense", sense)
+            .field("enabled", enabled)
             .field("hovered", hovered)
             .field("clicked", clicked)
             .field("double_clicked", double_clicked)
@@ -117,6 +123,13 @@ impl Response {
         self.double_clicked[PointerButton::Primary as usize]
     }
 
+    /// Was the widget enabled?
+    /// If false, there was no interaction attempted
+    /// and the widget should be drawn in a gray disabled look.
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// The pointer is hovering above this widget or the widget was clicked/tapped this frame.
     pub fn hovered(&self) -> bool {
         self.hovered
@@ -141,7 +154,7 @@ impl Response {
 
     /// The widgets is being dragged.
     ///
-    /// To find out which button(s), query [`PointerState::button_down`]
+    /// To find out which button(s), query [`crate::PointerState::button_down`]
     /// (`ui.input().pointer.button_down(…)`).
     pub fn dragged(&self) -> bool {
         self.dragged
@@ -208,8 +221,14 @@ impl Response {
     /// if response.clicked() { /* … */ }
     /// ```
     pub fn interact(&self, sense: Sense) -> Self {
-        self.ctx
-            .interact_with_hovered(self.layer_id, self.id, self.rect, sense, self.hovered)
+        self.ctx.interact_with_hovered(
+            self.layer_id,
+            self.id,
+            self.rect,
+            sense,
+            self.enabled,
+            self.hovered,
+        )
     }
 
     /// Move the scroll to this UI with the specified alignment.
@@ -255,6 +274,7 @@ impl Response {
             id: self.id,
             rect: self.rect.union(other.rect),
             sense: self.sense.union(other.sense),
+            enabled: self.enabled || other.enabled,
             hovered: self.hovered || other.hovered,
             clicked: [
                 self.clicked[0] || other.clicked[0],
@@ -307,5 +327,30 @@ impl std::ops::BitOr for Response {
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = self.union(rhs);
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+/// Returned when we wrap some ui-code and want to return both
+/// the results of the inner function and the ui as a whole, e.g.:
+///
+/// ```
+/// # let ui = &mut egui::Ui::__test();
+/// let inner_resp = ui.horizontal(|ui| {
+///     ui.label("Blah blah");
+///     42
+/// });
+/// inner_resp.response.on_hover_text("You hovered the horizontal layout");
+/// assert_eq!(inner_resp.inner, 42);
+/// ```
+pub struct InnerResponse<R> {
+    pub inner: R,
+    pub response: Response,
+}
+
+impl<R> InnerResponse<R> {
+    pub fn new(inner: R, response: Response) -> Self {
+        Self { inner, response }
     }
 }

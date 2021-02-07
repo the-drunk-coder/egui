@@ -65,7 +65,7 @@ impl State {
         ui: &mut Ui,
         id: Id,
         add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> Option<(R, Response)> {
+    ) -> Option<InnerResponse<R>> {
         let openness = self.openness(ui.ctx(), id);
         if openness <= 0.0 {
             None
@@ -96,10 +96,10 @@ impl State {
                 ret
             }))
         } else {
-            let (ret, response) = ui.wrap(add_contents);
-            let full_size = response.rect.size();
+            let ret_response = ui.wrap(add_contents);
+            let full_size = ret_response.response.rect.size();
             self.open_height = Some(full_size.y);
-            Some((ret, response))
+            Some(ret_response)
         }
     }
 }
@@ -134,9 +134,7 @@ pub struct CollapsingHeader {
 impl CollapsingHeader {
     /// The `CollapsingHeader` starts out collapsed unless you call `default_open`.
     pub fn new(label: impl Into<String>) -> Self {
-        let label = Label::new(label)
-            .text_style(TextStyle::Button)
-            .multiline(false);
+        let label = Label::new(label).text_style(TextStyle::Button).wrap(false);
         let id_source = Id::new(label.text());
         Self {
             label,
@@ -260,15 +258,15 @@ impl CollapsingHeader {
                     ui.expand_to_include_x(header_response.rect.right());
                     add_contents(ui)
                 })
-                .0
+                .inner
             });
             ui.memory().collapsing_headers.insert(id, state);
 
-            if let Some((ret, response)) = ret_response {
+            if let Some(ret_response) = ret_response {
                 CollapsingResponse {
                     header_response,
-                    body_response: Some(response),
-                    body_returned: Some(ret),
+                    body_response: Some(ret_response.response),
+                    body_returned: Some(ret_response.inner),
                 }
             } else {
                 CollapsingResponse {
@@ -278,7 +276,7 @@ impl CollapsingHeader {
                 }
             }
         })
-        .0
+        .inner
     }
 }
 
