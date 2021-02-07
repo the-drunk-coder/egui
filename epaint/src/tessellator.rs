@@ -726,13 +726,14 @@ impl Tessellator {
         let tex_h = fonts.texture().height as f32;
 
         let clip_rect = self.clip_rect.expand(2.0); // Some fudge to handle letters that are slightly larger than expected.
-
+	
         let font = &fonts[text_style];
 	let mut char_count = 0;
         let mut chars = galley.text.chars();
 	let mut color = default_color;
-        for line in &galley.rows {
+        for line in &galley.rows {	   
             let line_min_y = pos.y + line.y_min;
+	    //println!("{} {} {}", pos.y, line.y_min, line_min_y);
             let line_max_y = line_min_y + font.row_height();
             let is_line_visible = line_max_y >= clip_rect.min.y && line_min_y <= clip_rect.max.y;
 

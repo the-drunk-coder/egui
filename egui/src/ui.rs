@@ -633,6 +633,9 @@ impl Ui {
         let scroll_y = self.cursor().y;
         self.ctx().frame_state().scroll_target = Some((scroll_y, align));
     }
+    pub fn scroll_to_y(&mut self, y: f32, align: Align) {
+        self.ctx().frame_state().scroll_target = Some((y, align));
+    }
 }
 
 /// # Adding widgets

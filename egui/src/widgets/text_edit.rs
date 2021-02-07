@@ -1133,40 +1133,36 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 	    
 	    let cursor_pos = galley.pos_from_cursor(&cursorp.primary);
 	    
-	    let mut screen_rect = ui.painter().clip_rect().clone();
+	    let mut screen_rect = response.rect; 
+	    let mut clip_rect = ui.painter().clip_rect().clone();
 	    // not sure why the 32 pixel offset is nevessary, maybe because of the header ?
-	    screen_rect.min.y = screen_rect.min.y - 32.0 + state.y_offset;
-	    screen_rect.max.y = screen_rect.max.y - 32.0 + state.y_offset;
+	    let vis_rect_min_y = clip_rect.min.y - screen_rect.min.y + 3.0;
+	    let vis_rect_max_y = clip_rect.max.y - screen_rect.min.y + 3.0;
 	    	    
-	    let cursor_left_top = if screen_rect.min.y == 0.0 {
-		cursor_pos.min.y < screen_rect.min.y
-	    } else {
-		cursor_pos.min.y <= screen_rect.min.y
-	    };
-	    
-	    let cursor_left_bottom = cursor_pos.max.y >= screen_rect.max.y;
-	    let cursor_height = cursor_pos.max.y - cursor_pos.min.y;	    
+	    let cursor_left_top = cursor_pos.min.y < vis_rect_min_y;		    
+	    let cursor_left_bottom = cursor_pos.max.y >= vis_rect_max_y;
+	    //let cursor_height = cursor_pos.max.y - cursor_pos.min.y;	    
 	    let is_cursor_visible = !cursor_left_top && !cursor_left_bottom;
 	    
-	    println!("screen rect: {} {} curs: {} {} {} left top: {} left bottom: {}, vis: {}",
-		     screen_rect.min.y,
-		     screen_rect.max.y,
+	    println!("vis rect: {} {} curs: {} {} left top: {} left bottom: {}, vis: {}",
+		     vis_rect_min_y,
+		     vis_rect_max_y,
 		     cursor_pos.min.y,
 		     cursor_pos.max.y,
-		     cursor_height,
+		     //cursor_height,
 		     cursor_left_top,
 		     cursor_left_bottom,
-		     is_cursor_visible);
-	     
-			    
-	    if cursor_left_top {
-		state.y_offset -= cursor_height + 3.0; 
-		response.scroll_to(cursor_pos, Align::Max);		
+		     is_cursor_visible,
+		     //state.y_offset
+		      //screen_rect.min.y
+	    );
+	     			    
+	    if cursor_left_top{		
+		ui.scroll_to_y(-cursor_pos.min.y, Align::top());
 	    }
 	    
-	    if cursor_left_bottom {
-		state.y_offset += cursor_height + 3.0;
-		response.scroll_to(cursor_pos, Align::Min);
+	    if cursor_left_bottom {		
+		ui.scroll_to_y(cursor_pos.max.y, Align::bottom());		
 	    }
 	}
 	
