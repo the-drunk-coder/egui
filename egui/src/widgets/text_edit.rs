@@ -1151,6 +1151,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 	    }
 	}
 
+	/*
 	if let Some(cursorp) = state.cursorp {
 	    
 	    let cursor_pos = galley.pos_from_cursor(&cursorp.primary);
@@ -1186,7 +1187,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 	    if cursor_left_bottom {		
 		ui.scroll_to_y(cursor_pos.max.y, Align::bottom());		
 	    }
-	}
+	}*/
 	
 	ui.painter()
             .multicolor_galley(response.rect.min, galley, text_style, egui_colors, default_color);
