@@ -70,7 +70,7 @@ ui.label(format!("Hello '{}', age {}", name, age));
 * Friendly: difficult to make mistakes, and shouldn't panic
 * Portable: the same code works on the web and as a native app
 * Easy to integrate into any environment
-* A simple 2D graphics API for custom painting
+* A simple 2D graphics API for custom painting ([`epaint`](https://docs.rs/epaint)).
 * No callbacks
 * Pure immediate mode
 * Extensible: [easy to write your own widgets for egui](https://github.com/emilk/egui/blob/master/egui_demo_lib/src/apps/demo/toggle_switch.rs)
@@ -162,7 +162,8 @@ The same code can be compiled to a native app or a web app.
 
 ### 3rd party
 
-* [`bevy_egui`](https://github.com/mvlabat/bevy_egui) egui bindings for [the Bevy game engine](https://bevyengine.org/).
+* [`bevy_egui`](https://github.com/mvlabat/bevy_egui) for [the Bevy game engine](https://bevyengine.org/).
+* [`egui_winit_ash_vk_mem`](https://crates.io/crates/egui_winit_ash_vk_mem) for for [winit](https://github.com/rust-windowing/winit), [ash](https://github.com/MaikKlein/ash) and [vk_mem](https://github.com/gwihlidal/vk-mem-rs).
 * [`wgpu`](https://crates.io/crates/wgpu) WebGPU API wrapper:
   * [egui_wgpu_backend](https://crates.io/crates/egui_wgpu_backend) with [example code](https://github.com/hasenbanck/egui_example)
   * Alternative: [egui_winit_wgpu](https://github.com/Gonkalbell/egui_winit_wgpu) (not available to crates.io)

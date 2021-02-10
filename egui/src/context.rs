@@ -8,6 +8,7 @@ use std::sync::{
 use crate::{
     animation_manager::AnimationManager,
     data::output::Output,
+    frame_state::FrameState,
     input_state::*,
     layers::GraphicLayers,
     mutex::{Mutex, MutexGuard},
@@ -17,116 +18,39 @@ use crate::{
 
 // ----------------------------------------------------------------------------
 
-/// State that is collected during a frame and then cleared.
-/// Short-term (single frame) memory.
-#[derive(Clone)]
-pub(crate) struct FrameState {
-    /// All `Id`s that were used this frame.
-    /// Used to debug `Id` clashes of widgets.
-    pub(crate) used_ids: ahash::AHashMap<Id, Pos2>,
-
-    /// Starts off as the screen_rect, shrinks as panels are added.
-    /// The `CentralPanel` does not change this.
-    /// This is the area available to Window's.
-    available_rect: Rect,
-
-    /// Starts off as the screen_rect, shrinks as panels are added.
-    /// The `CentralPanel` retracts from this.
-    unused_rect: Rect,
-
-    /// How much space is used by panels.
-    used_by_panels: Rect,
-
-    /// If a tooltip has been shown this frame, where was it?
-    /// This is used to prevent multiple tooltips to cover each other.
-    /// Initialized to `None` at the start of each frame.
-    pub(crate) tooltip_rect: Option<Rect>,
-
-    /// Cleared by the first `ScrollArea` that makes use of it.
-    pub(crate) scroll_delta: Vec2,
-    pub(crate) scroll_target: Option<(f32, Align)>,
-}
-
-impl Default for FrameState {
-    fn default() -> Self {
-        Self {
-            used_ids: Default::default(),
-            available_rect: Rect::NAN,
-            unused_rect: Rect::NAN,
-            used_by_panels: Rect::NAN,
-            tooltip_rect: None,
-            scroll_delta: Vec2::ZERO,
-            scroll_target: None,
-        }
-    }
-}
-
-impl FrameState {
-    fn begin_frame(&mut self, input: &InputState) {
-        let Self {
-            used_ids,
-            available_rect,
-            unused_rect,
-            used_by_panels,
-            tooltip_rect,
-            scroll_delta,
-            scroll_target,
-        } = self;
-
-        used_ids.clear();
-        *available_rect = input.screen_rect();
-        *unused_rect = input.screen_rect();
-        *used_by_panels = Rect::NOTHING;
-        *tooltip_rect = None;
-        *scroll_delta = input.scroll_delta;
-        *scroll_target = None;
-    }
-
-    /// How much space is still available after panels has been added.
-    /// This is the "background" area, what egui doesn't cover with panels (but may cover with windows).
-    /// This is also the area to which windows are constrained.
-    pub fn available_rect(&self) -> Rect {
-        debug_assert!(
-            self.available_rect.is_finite(),
-            "Called `available_rect()` before `CtxRef::begin_frame()`"
-        );
-        self.available_rect
-    }
-
-    /// Shrink `available_rect`.
-    pub(crate) fn allocate_left_panel(&mut self, panel_rect: Rect) {
-        debug_assert!(
-            panel_rect.min.distance(self.available_rect.min) < 0.1,
-            "Mismatching left panel. You must not create a panel from within another panel."
-        );
-        self.available_rect.min.x = panel_rect.max.x;
-        self.unused_rect.min.x = panel_rect.max.x;
-        self.used_by_panels = self.used_by_panels.union(panel_rect);
-    }
-
-    /// Shrink `available_rect`.
-    pub(crate) fn allocate_top_panel(&mut self, panel_rect: Rect) {
-        debug_assert!(
-            panel_rect.min.distance(self.available_rect.min) < 0.1,
-            "Mismatching top panel. You must not create a panel from within another panel."
-        );
-        self.available_rect.min.y = panel_rect.max.y;
-        self.unused_rect.min.y = panel_rect.max.y;
-        self.used_by_panels = self.used_by_panels.union(panel_rect);
-    }
-
-    pub(crate) fn allocate_central_panel(&mut self, panel_rect: Rect) {
-        // Note: we do not shrink `available_rect`, because
-        // we allow windows to cover the CentralPanel.
-        self.unused_rect = Rect::NOTHING; // Nothing left unused after this
-        self.used_by_panels = self.used_by_panels.union(panel_rect);
-    }
-}
-
-// ----------------------------------------------------------------------------
-
 /// A wrapper around [`Arc`](std::sync::Arc)`<`[`Context`]`>`.
 /// This is how you will normally create and access a [`Context`].
+///
+/// Almost all methods are marked `&self`, `Context` has interior mutability (protected by mutexes).
+///
+/// [`CtxRef`] is cheap to clone, and any clones refers to the same mutable data.
+///
+/// # Example:
+///
+/// ``` no_run
+/// # fn handle_output(_: egui::Output) {}
+/// # fn paint(_: Vec<egui::ClippedMesh>) {}
+/// let mut ctx = egui::CtxRef::default();
+///
+/// // Game loop:
+/// loop {
+///     let raw_input = egui::RawInput::default();
+///     ctx.begin_frame(raw_input);
+///
+///     egui::CentralPanel::default().show(&ctx, |ui| {
+///         ui.label("Hello world!");
+///         if ui.button("Click me").clicked() {
+///             /* take some action here */
+///         }
+///     });
+///
+///     let (output, shapes) = ctx.end_frame();
+///     let clipped_meshes = ctx.tessellate(shapes); // create triangles to paint
+///     handle_output(output);
+///     paint(clipped_meshes);
+/// }
+/// ```
+///
 #[derive(Clone)]
 pub struct CtxRef(std::sync::Arc<Context>);
 
@@ -168,7 +92,11 @@ impl Default for CtxRef {
 }
 
 impl CtxRef {
-    /// Call at the start of every frame.
+    /// Call at the start of every frame. Match with a call to [`Context::end_frame`].
+    ///
+    /// This will modify the internal reference to point to a new generation of [`Context`].
+    /// Any old clones of this [`CtxRef`] will refer to the old [`Context`], which will not get new input.
+    ///
     /// Put your widgets into a [`SidePanel`], [`TopPanel`], [`CentralPanel`], [`Window`] or [`Area`].
     pub fn begin_frame(&mut self, new_input: RawInput) {
         let mut self_: Context = (*self.0).clone();
@@ -354,7 +282,14 @@ impl CtxRef {
 /// This is the first thing you need when working with egui. Create using [`CtxRef`].
 ///
 /// Contains the [`InputState`], [`Memory`], [`Output`], and more.
-// TODO: too many mutexes. Maybe put it all behind one Mutex instead.
+///
+/// Your handle to Egui.
+///
+/// Almost all methods are marked `&self`, `Context` has interior mutability (protected by mutexes).
+/// Multi-threaded access to a [`Context`] is behind the feature flag `multi_threaded`.
+/// Normally you'd always do all ui work on one thread, or perhaps use multiple contexts,
+/// but if you really want to access the same Context from multiple threads, it *SHOULD* be fine,
+/// but you are likely the first person to try it.
 #[derive(Default)]
 pub struct Context {
     /// None until first call to `begin_frame`.
@@ -591,8 +526,7 @@ impl Context {
 
     /// Call at the end of each frame.
     /// Returns what has happened this frame (`Output`) as well as what you need to paint.
-    /// You can transform the returned shapes into triangles with a call to
-    /// `Context::tessellate`.
+    /// You can transform the returned shapes into triangles with a call to `Context::tessellate`.
     #[must_use]
     pub fn end_frame(&self) -> (Output, Vec<ClippedShape>) {
         if self.input.wants_repaint() {
@@ -873,6 +807,11 @@ impl Context {
 
         ui.shrink_width_to_current(); // don't let the text below grow this window wider
         ui.label("NOTE: the position of this window cannot be reset from within itself.");
+
+        ui.collapsing("Interaction", |ui| {
+            let interaction = self.memory().interaction.clone();
+            interaction.ui(ui);
+        });
     }
 }
 
