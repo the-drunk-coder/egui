@@ -1,10 +1,7 @@
 use std::hash::Hash;
 
-use crate::{
-    paint::{Shape, TextStyle},
-    widgets::Label,
-    *,
-};
+use crate::{widgets::Label, *};
+use epaint::{Shape, TextStyle};
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
@@ -116,7 +113,7 @@ pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
     let rect = rect.expand(visuals.expansion);
     let mut points = vec![rect.left_top(), rect.right_top(), rect.center_bottom()];
     use std::f32::consts::TAU;
-    let rotation = math::Rot2::from_angle(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
+    let rotation = emath::Rot2::from_angle(remap(openness, 0.0..=1.0, -TAU / 4.0..=0.0));
     for p in &mut points {
         *p = rect.center() + rotation * (*p - rect.center());
     }

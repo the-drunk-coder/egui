@@ -7,9 +7,8 @@ use {
 };
 
 use egui::{
-    math::clamp,
-    paint::{Color32, Texture},
-    vec2,
+    emath::{clamp, vec2},
+    epaint::{Color32, Texture},
 };
 
 type Gl = WebGl2RenderingContext;
@@ -171,22 +170,20 @@ impl WebGl2Painter {
         let index = self.alloc_user_texture_index();
         assert_eq!(size.0 * size.1, srgba_pixels.len());
 
-        if let Some(user_texture) = self.user_textures.get_mut(index) {
-            if let Some(user_texture) = user_texture {
-                let mut pixels: Vec<u8> = Vec::with_capacity(srgba_pixels.len() * 4);
-                for srgba in srgba_pixels {
-                    pixels.push(srgba.r());
-                    pixels.push(srgba.g());
-                    pixels.push(srgba.b());
-                    pixels.push(srgba.a());
-                }
-
-                *user_texture = UserTexture {
-                    size,
-                    pixels,
-                    gl_texture: None,
-                };
+        if let Some(Some(user_texture)) = self.user_textures.get_mut(index) {
+            let mut pixels: Vec<u8> = Vec::with_capacity(srgba_pixels.len() * 4);
+            for srgba in srgba_pixels {
+                pixels.push(srgba.r());
+                pixels.push(srgba.g());
+                pixels.push(srgba.b());
+                pixels.push(srgba.a());
             }
+
+            *user_texture = UserTexture {
+                size,
+                pixels,
+                gl_texture: None,
+            };
         }
 
         egui::TextureId::User(index as u64)
@@ -255,7 +252,7 @@ impl WebGl2Painter {
         }
     }
 
-    fn paint_mesh(&self, mesh: &egui::paint::Mesh16) -> Result<(), JsValue> {
+    fn paint_mesh(&self, mesh: &egui::epaint::Mesh16) -> Result<(), JsValue> {
         debug_assert!(mesh.is_valid());
 
         let mut positions: Vec<f32> = Vec::with_capacity(2 * mesh.vertices.len());

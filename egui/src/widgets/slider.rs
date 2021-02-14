@@ -33,6 +33,10 @@ struct SliderSpec {
     /// For logarithmic sliders, the smallest positive value we are interested in.
     /// 1 for integer sliders, maybe 1e-6 for others.
     smallest_positive: f64,
+    /// For logarithmic sliders, the largest positive value we are interested in
+    /// before the slider switches to `INFINITY`, if that is the higher end.
+    /// Default: INFINITY.
+    largest_finite: f64,
 }
 
 /// Control a number by a horizontal slider.
@@ -68,6 +72,7 @@ impl<'a> Slider<'a> {
             spec: SliderSpec {
                 logarithmic: false,
                 smallest_positive: 1e-6,
+                largest_finite: f64::INFINITY,
             },
             clamp_to_range: false,
             smart_aim: true,
@@ -164,6 +169,14 @@ impl<'a> Slider<'a> {
         self
     }
 
+    /// For logarithmic sliders, the largest positive value we are interested in
+    /// before the slider switches to `INFINITY`, if that is the higher end.
+    /// Default: INFINITY.
+    pub fn largest_finite(mut self, largest_finite: f64) -> Self {
+        self.spec.largest_finite = largest_finite;
+        self
+    }
+
     /// If set to `true`, all incoming and outgoing values will be clamped to the slider range.
     /// Default: `false`.
     pub fn clamp_to_range(mut self, clamp_to_range: bool) -> Self {
@@ -233,7 +246,7 @@ impl<'a> Slider<'a> {
             value = clamp(value, self.range.clone());
         }
         if let Some(max_decimals) = self.max_decimals {
-            value = math::round_to_decimals(value, max_decimals);
+            value = emath::round_to_decimals(value, max_decimals);
         }
         set(&mut self.get_set_value, value);
     }
@@ -278,7 +291,7 @@ impl<'a> Slider<'a> {
         if let Some(pointer_pos) = response.interact_pointer_pos() {
             let new_value = if self.smart_aim {
                 let aim_radius = ui.input().aim_radius();
-                crate::math::smart_aim::best_in_range_f64(
+                emath::smart_aim::best_in_range_f64(
                     self.value_from_x(pointer_pos.x - aim_radius, x_range.clone()),
                     self.value_from_x(pointer_pos.x + aim_radius, x_range.clone()),
                 )
@@ -387,13 +400,13 @@ impl<'a> Slider<'a> {
         let auto_decimals = clamp(auto_decimals, min_decimals..=max_decimals);
 
         if min_decimals == max_decimals {
-            math::format_with_minimum_decimals(value, max_decimals)
+            emath::format_with_minimum_decimals(value, max_decimals)
         } else if value == 0.0 {
             "0".to_owned()
         } else if range == 0.0 {
             value.to_string()
         } else {
-            math::format_with_decimals_in_range(value, auto_decimals..=max_decimals)
+            emath::format_with_decimals_in_range(value, auto_decimals..=max_decimals)
         }
     }
 }
@@ -426,7 +439,7 @@ impl<'a> Widget for Slider<'a> {
 // Helpers for converting slider range to/from normalized [0-1] range.
 // Always clamps.
 // Logarithmic sliders are allowed to include zero and infinity,
-// even though mathematically it doesn't make sense.
+// even though emathematically it doesn't make sense.
 
 use std::f64::INFINITY;
 
@@ -545,7 +558,11 @@ fn range_log10(min: f64, max: f64, spec: &SliderSpec) -> (f64, f64) {
             (max.log10() - INF_RANGE_MAGNITUDE, max.log10())
         }
     } else if max == INFINITY {
-        (min.log10(), min.log10() + INF_RANGE_MAGNITUDE)
+        if min < spec.largest_finite {
+            (min.log10(), spec.largest_finite.log10())
+        } else {
+            (min.log10(), min.log10() + INF_RANGE_MAGNITUDE)
+        }
     } else {
         (min.log10(), max.log10())
     }

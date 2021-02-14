@@ -1,7 +1,6 @@
-use crate::{math::*, util::History};
-use std::collections::HashSet;
-
 use crate::data::input::*;
+use crate::{emath::*, util::History};
+use std::collections::HashSet;
 
 pub use crate::data::input::Key;
 
@@ -559,7 +558,7 @@ impl InputState {
             events,
         } = self;
 
-        ui.style_mut().body_text_style = crate::paint::TextStyle::Monospace;
+        ui.style_mut().body_text_style = epaint::TextStyle::Monospace;
         ui.collapsing("Raw Input", |ui| raw.ui(ui));
 
         crate::containers::CollapsingHeader::new("🖱 Pointer")

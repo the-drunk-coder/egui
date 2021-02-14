@@ -1,7 +1,10 @@
 #![allow(deprecated)] // legacy implement_vertex macro
 
 use {
-    egui::{math::clamp, paint::Mesh, Color32, Rect},
+    egui::{
+        emath::{clamp, Rect},
+        epaint::{Color32, Mesh},
+    },
     glium::{
         implement_vertex,
         index::PrimitiveType,
@@ -286,18 +289,16 @@ impl Painter {
         assert_eq!(size.0 * size.1, pixels.len());
 
         if let egui::TextureId::User(id) = id {
-            if let Some(user_texture) = self.user_textures.get_mut(id as usize) {
-                if let Some(user_texture) = user_texture {
-                    let pixels: Vec<Vec<(u8, u8, u8, u8)>> = pixels
-                        .chunks(size.0 as usize)
-                        .map(|row| row.iter().map(|srgba| srgba.to_tuple()).collect())
-                        .collect();
+            if let Some(Some(user_texture)) = self.user_textures.get_mut(id as usize) {
+                let pixels: Vec<Vec<(u8, u8, u8, u8)>> = pixels
+                    .chunks(size.0 as usize)
+                    .map(|row| row.iter().map(|srgba| srgba.to_tuple()).collect())
+                    .collect();
 
-                    *user_texture = UserTexture {
-                        pixels,
-                        gl_texture: None,
-                    };
-                }
+                *user_texture = UserTexture {
+                    pixels,
+                    gl_texture: None,
+                };
             }
         }
     }
