@@ -1373,7 +1373,7 @@ fn delete_next_word(text: &mut String, min_ccursor: CCursor) -> CCursor {
     delete_selected_ccursor_range(text, [min_ccursor, max_ccursor])
 }
 
-fn delete_paragraph_before_cursor(
+fn delete_paragraph_before_cursor (
     text: &mut String,
     galley: &Galley,
     cursorp: &CursorPair,
@@ -1428,7 +1428,29 @@ fn on_key_press(
                     // alt on mac, ctrl on windows
                     delete_previous_word(text, cursor.ccursor)
                 } else {
-                    delete_previous_char(text, cursor.ccursor)
+		    // this seems inefficient ... 
+		    if let Some(cur_char) = text.chars().nth(cursor.ccursor.index - 1) {
+			//println!("cur char {}", cur_char);
+			if let Some(next_char) = text.chars().nth(cursor.ccursor.index) {
+			    //println!("next char {}", next_char);
+			    if (cur_char == '(' && next_char == ')')
+				|| (cur_char == '[' && next_char == ']')
+				|| (cur_char == '\"' && next_char == '\"') {
+				    let icur = delete_previous_char(text, cursor.ccursor);
+				    delete_next_char(text, icur)
+				} else {
+				    delete_previous_char(text, cursor.ccursor)
+				}
+			} else {
+			    delete_previous_char(text, cursor.ccursor)
+			}
+		    } else {
+			delete_previous_char(text, cursor.ccursor)
+		    }
+		    
+		    
+		    
+                    
                 }
             } else {
                 delete_selected(text, cursorp)
