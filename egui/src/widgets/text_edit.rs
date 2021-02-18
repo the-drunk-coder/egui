@@ -1056,11 +1056,28 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::Home, modifiers, false);
+			
+			if modifiers.ctrl {
+			    // windows behavior
+			    cursorp.primary = Cursor::default();
+			} else {
+			    cursorp.primary = galley.cursor_begin_of_row(&cursorp.primary);
+			}
+
+			// find next open paren ...
+			if let Some(par_idx) = find_next_open_paren_in_row(text.chars(), cursorp.primary.ccursor.index) {
+			    cursorp.primary.ccursor.index = if par_idx > 0 {
+				par_idx - 1
+			    } else {
+				par_idx
+			    };
+			}
+						
 			if !modifiers.shift && !state.selection_toggle {
 			    cursorp.secondary = cursorp.primary;
 			}
-			None
+			
+			Some(cursorp.as_ccursorp())
 		    }
 		    Event::Key {
                         key: Key::End,
@@ -1487,14 +1504,13 @@ fn move_single_cursor(cursor: &mut Cursor, galley: &Galley, key: Key, modifiers:
                 *cursor = galley.cursor_down_one_row(cursor);
             }
         }
-
         Key::Home => {
             if modifiers.ctrl {
                 // windows behavior
                 *cursor = Cursor::default();
             } else {
                 *cursor = galley.cursor_begin_of_row(cursor);
-            }
+            }	    
         }
         Key::End => {
             if modifiers.ctrl {
@@ -1822,6 +1838,19 @@ fn next_word_boundary_char_index(it: impl Iterator<Item = char>, mut index: usiz
         }
     }
     index
+}
+
+fn find_next_open_paren_in_row(it: impl Iterator<Item = char>, mut index: usize) -> Option<usize> {
+    let mut it = it.skip(index);
+    while let Some(first) = it.next() {	
+	index += 1;
+	if first == '(' {
+	    return Some(index);
+	} else if first == '\n' {
+	    break;
+	}	
+    }
+    None
 }
 
 fn is_word_char(c: char) -> bool {
