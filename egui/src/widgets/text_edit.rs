@@ -897,6 +897,23 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 			Some(CCursorPair::one(ccursor))
 		    }
 		    Event::Key {
+                        key: Key::LSquareBrack, // electric parenthesis for s-expression languages ...
+                        pressed: true,
+                        ..
+                    } => {
+			// enclose selection in parenthesis and
+			// jump to opening ...
+			let selection = selected_str(text, &cursorp).clone().to_string();
+			let selection_len = selection.len();
+			let mut ccursor = delete_selected(text, &cursorp);
+			insert_text(&mut ccursor, text, format!("[{}]", selection).as_str());
+			// clear selection
+			state.selection_toggle = false;
+			// go to opening paren so the function name can be entered ... 
+			ccursor.index -= selection_len + 1;			    
+			Some(CCursorPair::one(ccursor))
+		    }
+		    Event::Key {
                         key: Key::DoubleQuote, // electric parenthesis for s-expression languages ...
                         pressed: true,
                         ..

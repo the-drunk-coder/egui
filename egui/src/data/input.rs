@@ -176,6 +176,8 @@ pub enum Key {
 
     LParen, // needed for my lisp-y editor ...
     RParen,
+    LSquareBrack, // needed for my lisp-y editor ...
+    RSquareBrack,
     DoubleQuote,
 
     /// Either from the main row or from the numpad.
