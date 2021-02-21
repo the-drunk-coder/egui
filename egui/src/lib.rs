@@ -1,4 +1,6 @@
-//! egui core library
+//! `egui`:  an easy-to-use GUI in pure Rust!
+//!
+//! Try the live web demo: <https://emilk.github.io/egui/index.html>. Read more about egui at <https://github.com/emilk/egui>.
 //!
 //! To quickly get started with egui, you can take a look at [`egui_template`](https://github.com/emilk/egui_template)
 //! which uses [`eframe`](https://docs.rs/eframe).
@@ -6,7 +8,9 @@
 //! To create a GUI using egui you first need a [`CtxRef`] (by convention referred to by `ctx`).
 //! Then you add a [`Window`] or a [`SidePanel`] to get a [`Ui`], which is what you'll be using to add all the buttons and labels that you need.
 //!
+//!
 //! ## Integrating with egui
+//!
 //! To write your own integration for egui you need to do this:
 //!
 //! ``` no_run
@@ -34,9 +38,14 @@
 //! }
 //! ```
 //!
+//!
 //! ## Using egui
 //!
 //! To see what is possible to build we egui you can check out the online demo at <https://emilk.github.io/egui/#demo>.
+//!
+//! If you like the "learning by doing" approach, clone <https://github.com/emilk/egui_template> and get started using egui right away.
+//!
+//! ### Getting a [`Ui`]
 //!
 //! Use one of [`SidePanel`], [`TopPanel`], [`CentralPanel`], [`Window`] or [`Area`] to
 //! get access to an [`Ui`] where you can put widgets. For example:
@@ -53,6 +62,80 @@
 //! });
 //! ```
 //!
+//! ## Conventions
+//!
+//! Conventions unless otherwise specified:
+//!
+//! * angles are in radians
+//! * `Vec2::X` is right and `Vec2::Y` is down.
+//! * `Pos2::ZERO` is left top.
+//!
+//!
+//! ## Understanding immediate mode
+//!
+//! `egui` is an immediate mode GUI library. It is useful to fully grok what "immediate mode" implies.
+//!
+//! Here is an example to illustrate it:
+//!
+//! ```
+//! # let ui = &mut egui::Ui::__test();
+//! if ui.button("click me").clicked() { take_action() }
+//! # fn take_action() {}
+//! ```
+//!
+//! This code is being executed each frame at maybe 60 frames per second.
+//! Each frame egui does these things:
+//!
+//! * lays out the letters `click me` in order to figure out the size of the button
+//! * decides where on screen to place the button
+//! * check if the mouse is hovering or clicking that location
+//! * chose button colors based on if it is being hovered or clicked
+//! * add a [`Shape::Rect`] and [`Shape::Text`] to the list of shapes to be painted later this frame
+//! * return a [`Response`] with the `clicked` member so the user can check for interactions
+//!
+//! There is no button being created and stored somewhere.
+//! The only output of this call is some colored shapes, and a [`Response`].
+//!
+//! Read more about the pros and cons of immediate mode at <https://github.com/emilk/egui#why-immediate-mode>.
+//!
+//! ## How widgets works
+//!
+//! ```
+//! # let ui = &mut egui::Ui::__test();
+//! if ui.button("click me").clicked() { take_action() }
+//! # fn take_action() {}
+//! ```
+//!
+//! is short for
+//!
+//! ```
+//! # let ui = &mut egui::Ui::__test();
+//! let button = egui::Button::new("click me");
+//! if ui.add(button).clicked() { take_action() }
+//! # fn take_action() {}
+//! ```
+//!
+//! which is short for
+//!
+//! ```
+//! # use egui::Widget;
+//! # let ui = &mut egui::Ui::__test();
+//! let button = egui::Button::new("click me");
+//! let response = button.ui(ui);
+//! if response.clicked() { take_action() }
+//! # fn take_action() {}
+//! ```
+//!
+//! [`Button`] uses the builder pattern to create the data required to show it. The [`Button`] is then discarded.
+//!
+//! [`Button`] implements `trait` [`Widget`], which looks like this:
+//! ```
+//! # use egui::*;
+//! pub trait Widget {
+//!     /// Allocate space, interact, paint, and return a [`Response`].
+//!     fn ui(self, ui: &mut Ui) -> Response;
+//! }
+//! ```
 //!
 //! # Code snippets
 //!
@@ -63,7 +146,8 @@
 //!
 //! ui.checkbox(&mut some_bool, "Click to toggle");
 //!
-//! ui.horizontal(|ui|{
+//! ui.horizontal_wrapped(|ui|{
+//!     ui.spacing_mut().item_spacing.x = 0.0; // remove spacing between widgets
 //!     // `radio_value` also works for enums, integers, and more.
 //!     ui.radio_value(&mut some_bool, false, "Off");
 //!     ui.radio_value(&mut some_bool, true, "On");
@@ -229,4 +313,44 @@ macro_rules! github_link_file {
         let url = format!("{}{}", $github_url, file!());
         $crate::Hyperlink::new(url).text($label)
     }};
+}
+
+// ----------------------------------------------------------------------------
+
+/// egui supports around 1216 emojis in total.
+/// Here are some of the most useful:
+/// ∞⊗⎗⎘⎙⏏⏴⏵⏶⏷
+/// ⏩⏪⏭⏮⏸⏹⏺■▶📾🔀🔁🔃
+/// ☀☁★☆☐☑☜☝☞☟⛃⛶✔
+/// ↺↻⟲⟳⬅➡⬆⬇⬈⬉⬊⬋⬌⬍⮨⮩⮪⮫
+/// ♡
+/// 📅📆
+/// 📈📉📊
+/// 📋📌📎📤📥🔆
+/// 🔈🔉🔊🔍🔎🔗🔘
+/// 🕓🖧🖩🖮🖱🖴🖵🖼🗀🗁🗋🗐🗑🗙🚫❓
+///
+/// NOTE: In egui all emojis are monochrome!
+///
+/// You can explore them all in the Font Book in [the online demo](https://emilk.github.io/egui/).
+///
+/// In addition, egui supports a few special emojis that are not part of the unicode standard.
+/// This module contains some of them:
+pub mod special_emojis {
+    /// Tux, the Linux penguin.
+    pub const OS_LINUX: char = '🐧';
+    /// The Windows logo.
+    pub const OS_WINDOWS: char = '';
+    /// The Android logo.
+    pub const OS_ANDROID: char = '';
+    /// The Apple logo.
+    pub const OS_APPLE: char = '';
+
+    /// The Github logo.
+    pub const GITHUB: char = '';
+
+    /// The word `git`.
+    pub const GIT: char = '';
+
+    // I really would like to have ferris here.
 }
