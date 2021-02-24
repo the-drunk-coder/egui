@@ -40,6 +40,12 @@ fn set(get_set_value: &mut GetSetValue<'_>, value: f64) {
 }
 
 /// A numeric value that you can change by dragging the number. More compact than a [`Slider`].
+///
+/// ```
+/// # let ui = &mut egui::Ui::__test();
+/// # let mut my_f32: f32 = 0.0;
+/// ui.add(egui::DragValue::f32(&mut my_f32).speed(0.1));
+/// ```
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
 pub struct DragValue<'a> {
     get_set_value: GetSetValue<'a>,
@@ -51,19 +57,22 @@ pub struct DragValue<'a> {
     max_decimals: Option<usize>,
 }
 
-impl<'a> DragValue<'a> {
-    pub(crate) fn from_get_set(get_set_value: impl 'a + FnMut(Option<f64>) -> f64) -> Self {
-        Self {
-            get_set_value: Box::new(get_set_value),
-            speed: 1.0,
-            prefix: Default::default(),
-            suffix: Default::default(),
-            clamp_range: f64::NEG_INFINITY..=f64::INFINITY,
-            min_decimals: 0,
-            max_decimals: None,
+macro_rules! impl_integer_constructor {
+    ($int:ident) => {
+        pub fn $int(value: &'a mut $int) -> Self {
+            Self::from_get_set(move |v: Option<f64>| {
+                if let Some(v) = v {
+                    *value = v.round() as $int;
+                }
+                *value as f64
+            })
+            .max_decimals(0)
+            .clamp_range_f64(($int::MIN as f64)..=($int::MAX as f64))
         }
-    }
+    };
+}
 
+impl<'a> DragValue<'a> {
     pub fn f32(value: &'a mut f32) -> Self {
         Self::from_get_set(move |v: Option<f64>| {
             if let Some(v) = v {
@@ -82,24 +91,27 @@ impl<'a> DragValue<'a> {
         })
     }
 
-    pub fn u8(value: &'a mut u8) -> Self {
-        Self::from_get_set(move |v: Option<f64>| {
-            if let Some(v) = v {
-                *value = v.round() as u8;
-            }
-            *value as f64
-        })
-        .max_decimals(0)
-    }
+    impl_integer_constructor!(i8);
+    impl_integer_constructor!(u8);
+    impl_integer_constructor!(i16);
+    impl_integer_constructor!(u16);
+    impl_integer_constructor!(i32);
+    impl_integer_constructor!(u32);
+    impl_integer_constructor!(i64);
+    impl_integer_constructor!(u64);
+    impl_integer_constructor!(isize);
+    impl_integer_constructor!(usize);
 
-    pub fn i32(value: &'a mut i32) -> Self {
-        Self::from_get_set(move |v: Option<f64>| {
-            if let Some(v) = v {
-                *value = v.round() as i32;
-            }
-            *value as f64
-        })
-        .max_decimals(0)
+    pub fn from_get_set(get_set_value: impl 'a + FnMut(Option<f64>) -> f64) -> Self {
+        Self {
+            get_set_value: Box::new(get_set_value),
+            speed: 1.0,
+            prefix: Default::default(),
+            suffix: Default::default(),
+            clamp_range: f64::NEG_INFINITY..=f64::INFINITY,
+            min_decimals: 0,
+            max_decimals: None,
+        }
     }
 
     /// How much the value changes when dragged one point (logical pixel).
