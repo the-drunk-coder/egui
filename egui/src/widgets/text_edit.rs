@@ -1,6 +1,6 @@
 use std::collections::{HashMap, BTreeMap};
 use crate::{util::undoer::Undoer, *};
-use epaint::{text::cursor::*, *};
+use epaint::{text::{TextColorMap, cursor::*}, *};
 
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
@@ -1158,28 +1158,28 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
             .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
 	
 	let code_colors = generate_lisp_color_map(text, function_names);
-	let mut egui_colors = BTreeMap::new();
+	let mut egui_colors = TextColorMap::new();
 			
 	for (k, v) in code_colors.iter() {
 	    //println!("{} {:?}", k,v );
 	    match v {
 		CodeColors::Function => {
-		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
+		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Keyword => {
-		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
+		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Comment => {
-		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
+		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		CodeColors::Boolean => {
-		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
+		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
 		},
 		CodeColors::String => {
-		    egui_colors.insert(*k, if let Some(col) = colors.get(v) {*col} else { Color32::from_rgb(240,120,59)});
+		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
 		}
 		_ => {		    
-		    egui_colors.insert(*k, default_color);
+		    egui_colors.add_color_change_at_index(*k, default_color);
 		}
 	    }
 	}
