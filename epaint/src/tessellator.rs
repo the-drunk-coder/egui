@@ -5,10 +5,9 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{text::Fonts, *};
+use crate::{text::{Fonts, TextColorMap}, *};
 use emath::*;
 use std::f32::consts::TAU;
-use std::collections::BTreeMap;
 
 // ----------------------------------------------------------------------------
 
@@ -586,7 +585,7 @@ impl Tessellator {
                 pos,
                 galley,
                 text_style,
-                colors,
+                color_map,
 		default_color
             } => {
                 if options.debug_paint_text_rects {
@@ -600,7 +599,7 @@ impl Tessellator {
                         out,
                     );
                 }
-                self.tessellate_multicolor_text(fonts, pos, &galley, text_style, &colors, default_color, out);
+                self.tessellate_multicolor_text(fonts, pos, &galley, text_style, &color_map, default_color, out);
             }
         }
     }
@@ -733,7 +732,7 @@ impl Tessellator {
         pos: Pos2,
         galley: &super::Galley,
         text_style: super::TextStyle,
-        colors: &BTreeMap<usize, Color32>,
+        color_map: &TextColorMap,
 	default_color: Color32,
 	out: &mut Mesh,
     ) {        	
@@ -760,10 +759,11 @@ impl Tessellator {
 
             for x_offset in line.x_offsets.iter().take(line.x_offsets.len() - 1) {
 		
-		if let Some(c) = colors.get(&char_count) {
-		   color = *c;
+		if let Some(c) = color_map.get_color_change_at_index(char_count) {
+		    color = *c;
 		} 		
-                let c = chars.next().unwrap();		
+
+		let c = chars.next().unwrap();		
 		char_count += 1;
 		
                 if self.options.coarse_tessellation_culling && !is_line_visible {

@@ -1,6 +1,5 @@
-use std::collections::BTreeMap;
 use crate::{
-    text::{Fonts, Galley, TextStyle},
+    text::{Fonts, Galley, TextStyle, TextColorMap},
     Color32, Mesh, Stroke,
 };
 use emath::*;
@@ -56,7 +55,7 @@ pub enum Shape {
         /// The layed out text
         galley: Galley,
 	text_style: TextStyle, // TODO: Font?
-	colors: BTreeMap<usize, Color32>,
+	color_map: TextColorMap,
         default_color: Color32,
     },
     Mesh(Mesh),

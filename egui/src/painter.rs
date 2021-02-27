@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
 use crate::{
     emath::{Align2, Pos2, Rect, Vec2},
     layers::{LayerId, ShapeIdx},
     Color32, CtxRef,
 };
 use epaint::{
-    text::{Fonts, Galley, TextStyle},
+    text::{Fonts, Galley, TextStyle, TextColorMap},
     Shape, Stroke,
 };
 
@@ -322,12 +321,12 @@ impl Painter {
     }
 
     /// Paint text that has already been layed out in a `Galley`, with multiple colors
-    pub fn multicolor_galley(&self, pos: Pos2, galley: Galley, text_style: TextStyle, colors: BTreeMap<usize, Color32>, default_color: Color32) {
+    pub fn multicolor_galley(&self, pos: Pos2, galley: Galley, text_style: TextStyle, color_map: TextColorMap, default_color: Color32) {
         self.add(Shape::MulticolorText {
             pos,
             galley,
             text_style,
-            colors,
+            color_map,
 	    default_color,
         });
     }
