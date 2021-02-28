@@ -92,35 +92,34 @@ pub fn input_to_egui(
             if is_printable_char(ch)
                 && !input_state.raw.modifiers.ctrl
                 && !input_state.raw.modifiers.mac_cmd
-            {		
-		if ch == '(' {
-		    // this is a bit hacky, but it makes it easier to handle
-		    // parens in the text_edit widget, i.e. for automatic pairs etc ...
-		    input_state.raw.events.push(Event::Key {
+            {
+                if ch == '(' {
+                    // this is a bit hacky, but it makes it easier to handle
+                    // parens in the text_edit widget, i.e. for automatic pairs etc ...
+                    input_state.raw.events.push(Event::Key {
                         key: Key::LParen,
                         pressed: true,
                         modifiers: input_state.raw.modifiers,
                     });
-		} else if ch == '[' {
-		    // this is a bit hacky, but it makes it easier to handle
-		    // parens in the text_edit widget, i.e. for automatic pairs etc ...
-		    input_state.raw.events.push(Event::Key {
+                } else if ch == '[' {
+                    // this is a bit hacky, but it makes it easier to handle
+                    // parens in the text_edit widget, i.e. for automatic pairs etc ...
+                    input_state.raw.events.push(Event::Key {
                         key: Key::LSquareBrack,
                         pressed: true,
                         modifiers: input_state.raw.modifiers,
                     });
-		} else if ch == '\"' {
-		    // this is a bit hacky, but it makes it easier to handle
-		    // parens in the text_edit widget, i.e. for automatic pairs etc ...
-		    input_state.raw.events.push(Event::Key {
+                } else if ch == '\"' {
+                    // this is a bit hacky, but it makes it easier to handle
+                    // parens in the text_edit widget, i.e. for automatic pairs etc ...
+                    input_state.raw.events.push(Event::Key {
                         key: Key::DoubleQuote,
                         pressed: true,
                         modifiers: input_state.raw.modifiers,
                     });
-		} else {
-		    input_state.raw.events.push(Event::Text(ch.to_string()));
-		}
-		
+                } else {
+                    input_state.raw.events.push(Event::Text(ch.to_string()));
+                }
             }
         }
         WindowEvent::KeyboardInput { input, .. } => {
@@ -157,11 +156,15 @@ pub fn input_to_egui(
 
                     // VirtualKeyCode::Paste etc in winit are broken/untrustworthy,
                     // so we detect these things manually:
-                    if input_state.raw.modifiers.command && (keycode == VirtualKeyCode::X || keycode == VirtualKeyCode::W)  {
+                    if input_state.raw.modifiers.command
+                        && (keycode == VirtualKeyCode::X || keycode == VirtualKeyCode::W)
+                    {
                         input_state.raw.events.push(Event::Cut);
                     } else if input_state.raw.modifiers.command && keycode == VirtualKeyCode::C {
                         input_state.raw.events.push(Event::Copy);
-                    } else if input_state.raw.modifiers.command && (keycode == VirtualKeyCode::V || keycode == VirtualKeyCode::Y) {
+                    } else if input_state.raw.modifiers.command
+                        && (keycode == VirtualKeyCode::V || keycode == VirtualKeyCode::Y)
+                    {
                         if let Some(clipboard) = clipboard {
                             match clipboard.get_contents() {
                                 Ok(contents) => {
@@ -225,7 +228,7 @@ pub fn translate_mouse_button(button: glutin::event::MouseButton) -> Option<egui
 
 pub fn translate_virtual_key_code(key: VirtualKeyCode) -> Option<egui::Key> {
     use VirtualKeyCode::*;
-        
+
     Some(match key {
         Down => Key::ArrowDown,
         Left => Key::ArrowLeft,

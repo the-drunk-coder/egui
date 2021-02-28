@@ -1,21 +1,24 @@
-use std::collections::{HashMap, BTreeMap};
 use crate::{util::undoer::Undoer, *};
-use epaint::{text::{TextColorMap, cursor::*}, *};
+use epaint::{
+    text::{cursor::*, TextColorMap},
+    *,
+};
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))]
 pub(crate) struct State {
     #[serde(skip)]
-    cursorp: Option<CursorPair>,    
+    cursorp: Option<CursorPair>,
     #[serde(skip)]
-    y_offset: f32, // the currently displayed subsection of the galley    
+    y_offset: f32, // the currently displayed subsection of the galley
     #[serde(skip)]
     flash_cursorp: Option<CursorPair>,
     #[serde(skip)]
     flash_alpha: u8,
     #[serde(skip)]
-    selection_toggle: bool,    
+    selection_toggle: bool,
     #[cfg_attr(feature = "persistence", serde(skip))]
     undoer: Undoer<(CCursorPair, String)>,
 }
@@ -148,7 +151,7 @@ impl<'t> TextEdit<'t> {
     pub fn new(text: &'t mut String) -> Self {
         Self::multiline(text)
     }
-    
+
     /// Now newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` loosing focus (`response.lost_kb_focus`).
     pub fn singleline(text: &'t mut String) -> Self {
         TextEdit {
@@ -448,7 +451,7 @@ impl<'t> TextEdit<'t> {
                         pressed: true,
                         ..
                     } => {
-			if multiline {
+                        if multiline {
                             let mut ccursor = delete_selected(text, &cursorp);
                             insert_text(&mut ccursor, text, "\n");
                             Some(CCursorPair::one(ccursor))
@@ -522,14 +525,20 @@ impl<'t> TextEdit<'t> {
             //    rect: bg_rect,
             //    corner_radius: visuals.corner_radius,
             //    fill: ui.style().visuals.dark_bg_color,
-                // fill: visuals.bg_fill,
+            // fill: visuals.bg_fill,
             //    stroke: visuals.bg_stroke,
             //});
         }
 
         if ui.memory().has_kb_focus(id) {
             if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, ui.style().visuals.selection.bg_fill);
+                paint_cursor_selection(
+                    ui,
+                    response.rect.min,
+                    &galley,
+                    &cursorp,
+                    ui.style().visuals.selection.bg_fill,
+                );
                 paint_cursor_end(ui, response.rect.min, &galley, &cursorp.primary);
             }
         }
@@ -562,6 +571,7 @@ impl<'t> TextEdit<'t> {
     }
 }
 
+use parking_lot::Mutex;
 /// A text region that the user can edit the contents of, and call a
 /// a callback on the selection on Ctrl+Enter
 ///
@@ -576,21 +586,20 @@ impl<'t> TextEdit<'t> {
 /// }
 /// ```
 use std::sync::*;
-use parking_lot::Mutex;
 
-pub struct LivecodeTextEdit<'t>  {
+pub struct LivecodeTextEdit<'t> {
     text: &'t mut String,
     id: Option<Id>,
     id_source: Option<Id>,
     reset_cursor: bool,
     text_style: Option<TextStyle>,
-    text_color: Option<Color32>,    
+    text_color: Option<Color32>,
     enabled: bool,
     desired_width: Option<f32>,
     desired_height_rows: usize,
     eval_callback: Option<Arc<Mutex<dyn FnMut(&String)>>>,
     function_names: &'t Vec<&'t str>,
-    colors:  &'t HashMap<CodeColors, Color32>
+    colors: &'t HashMap<CodeColors, Color32>,
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
@@ -604,23 +613,26 @@ pub enum CodeColors {
     Linebreak,
 }
 
-impl<'t> LivecodeTextEdit<'t>  {
-            
+impl<'t> LivecodeTextEdit<'t> {
     /// A `TextEdit` for multiple lines. Pressing enter key will create a new line.
-    pub fn multiline(text: &'t mut String, function_names: &'t Vec<&'t str>, colors: &'t HashMap<CodeColors, Color32>) -> Self {
+    pub fn multiline(
+        text: &'t mut String,
+        function_names: &'t Vec<&'t str>,
+        colors: &'t HashMap<CodeColors, Color32>,
+    ) -> Self {
         LivecodeTextEdit {
             text,
             id: None,
             id_source: None,
-	    reset_cursor: false,
+            reset_cursor: false,
             text_style: None,
             text_color: None,
             enabled: true,
             desired_width: None,
             desired_height_rows: 4,
-	    eval_callback: None,
-	    function_names,
-	    colors,
+            eval_callback: None,
+            function_names,
+            colors,
         }
     }
 
@@ -681,21 +693,21 @@ impl<'t> LivecodeTextEdit<'t>  {
     }
 }
 
-impl<'t> Widget for LivecodeTextEdit<'t>  {
+impl<'t> Widget for LivecodeTextEdit<'t> {
     fn ui(self, ui: &mut Ui) -> Response {
         let LivecodeTextEdit {
             text,
             id,
             id_source,
-	    reset_cursor,
+            reset_cursor,
             text_style,
             text_color,
             enabled,
             desired_width,
             desired_height_rows,
-	    eval_callback,
-	    function_names,
-	    colors	
+            eval_callback,
+            function_names,
+            colors,
         } = self;
 
         let text_style = text_style.unwrap_or_else(|| ui.style().body_text_style);
@@ -703,8 +715,8 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
         let line_spacing = font.row_height();
         let available_width = ui.available_width();
 
-	let mut galley = font.layout_multiline(text.clone(), available_width);
-        
+        let mut galley = font.layout_multiline(text.clone(), available_width);
+
         let desired_width = desired_width.unwrap_or_else(|| ui.style().spacing.text_edit_width);
         let desired_height = (desired_height_rows.at_least(1) as f32) * line_spacing;
         let desired_size = vec2(
@@ -712,7 +724,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
             galley.size.y.max(desired_height),
         );
 
-	let (auto_id, rect) = ui.allocate_space(desired_size);
+        let (auto_id, rect) = ui.allocate_space(desired_size);
 
         let id = id.unwrap_or_else(|| {
             if let Some(id_source) = id_source {
@@ -721,29 +733,28 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                 auto_id // Since we are only storing the cursor, perfect persistence Id not super important
             }
         });
-        
-        let mut state = ui.memory().text_edit.get(&id).cloned().unwrap_or_default();	
 
-	if reset_cursor {
-	    state.y_offset = 0.0;
-	}
-	
+        let mut state = ui.memory().text_edit.get(&id).cloned().unwrap_or_default();
+
+        if reset_cursor {
+            state.y_offset = 0.0;
+        }
+
         let sense = if enabled {
             Sense::click_and_drag()
         } else {
             Sense::hover()
         };
         let response = ui.interact(rect, id, sense);
-	
+
         if enabled {
             ui.memory().interested_in_kb_focus(id);
         }
 
         if enabled {
             if let Some(pointer_pos) = ui.input().pointer.interact_pos() {
-                		
                 let cursor_at_pointer = galley.cursor_from_pos(pointer_pos - response.rect.min);
-                
+
                 if response.hovered && response.double_clicked() {
                     // Select word:
                     let center = cursor_at_pointer;
@@ -760,8 +771,8 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                         } else {
                             state.cursorp = Some(CursorPair::one(cursor_at_pointer));
                         }
-                    } else {		
-                        state.cursorp = Some(CursorPair::one(cursor_at_pointer));			
+                    } else {
+                        state.cursorp = Some(CursorPair::one(cursor_at_pointer));
                     }
                 } else if ui.input().pointer.any_down() && response.is_pointer_button_down_on() {
                     if let Some(cursorp) = &mut state.cursorp {
@@ -801,42 +812,42 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                     }
                 })
                 .unwrap_or_else(|| CursorPair::one(galley.end()));
-	    
+
             // We feed state to the undoer both before and after handling input
             // so that the undoer creates automatic saves even when there are no events for a while.
             state
                 .undoer
-                .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));	    
-	    
-            for event in &ui.input().events {
-		let did_mutate_text = match event {
-                    Event::Copy => {
-			// clear selection
-			state.selection_toggle = false;
+                .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));
 
-			// don't copy empty text
-			if !cursorp.is_empty() {                            
+            for event in &ui.input().events {
+                let did_mutate_text = match event {
+                    Event::Copy => {
+                        // clear selection
+                        state.selection_toggle = false;
+
+                        // don't copy empty text
+                        if !cursorp.is_empty() {
                             ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
                         }
-			
+
                         None
                     }
                     Event::Cut => {
-			// clear selection
-			state.selection_toggle = false;
-			
-			if !cursorp.is_empty() {
+                        // clear selection
+                        state.selection_toggle = false;
+
+                        if !cursorp.is_empty() {
                             ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
                             Some(CCursorPair::one(delete_selected(text, &cursorp)))
                         } else {
-			    None
-			}
+                            None
+                        }
                     }
                     Event::Text(text_to_insert) => {
-			// clear selection
-			state.selection_toggle = false;
-			
-			// Newlines are handled by `Key::Enter`.
+                        // clear selection
+                        state.selection_toggle = false;
+
+                        // Newlines are handled by `Key::Enter`.
                         if !text_to_insert.is_empty()
                             && text_to_insert != "\n"
                             && text_to_insert != "\r"
@@ -846,155 +857,153 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                             Some(CCursorPair::one(ccursor))
                         } else {
                             None
-                        }			
+                        }
                     }
-		    Event::Key {
+                    Event::Key {
                         key: Key::Tab,
                         pressed: true,
                         ..
                     } => {
-			if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
-			    let old_cursor = cursorp.as_ccursorp();
-			    let cup = CursorPair {
-				primary: galley.from_ccursor(sexp_cursors.primary),
-				secondary: galley.from_ccursor(sexp_cursors.secondary),
-			    };
+                        if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+                            let old_cursor = cursorp.as_ccursorp();
+                            let cup = CursorPair {
+                                primary: galley.from_ccursor(sexp_cursors.primary),
+                                secondary: galley.from_ccursor(sexp_cursors.secondary),
+                            };
 
-			    let formatted = {
-				format_sexp(selected_str(text, &cup))
-			    };
+                            let formatted = { format_sexp(selected_str(text, &cup)) };
 
-			    let mut ccursor = delete_selected(text, &cup);
-			    insert_text(&mut ccursor, text, &formatted);
-			    Some(CCursorPair::one(old_cursor.primary))
-			} else {
-			    None
-			}			    
-		    }
-		    Event::Key {
+                            let mut ccursor = delete_selected(text, &cup);
+                            insert_text(&mut ccursor, text, &formatted);
+                            Some(CCursorPair::one(old_cursor.primary))
+                        } else {
+                            None
+                        }
+                    }
+                    Event::Key {
                         key: Key::Space,
                         pressed: true,
                         modifiers,
                     } => {
-			if modifiers.command {			    
-			    state.selection_toggle = !state.selection_toggle;
-			}
-			None
-		    },
-		    Event::Key {
+                        if modifiers.command {
+                            state.selection_toggle = !state.selection_toggle;
+                        }
+                        None
+                    }
+                    Event::Key {
                         key: Key::LParen, // electric parenthesis for s-expression languages ...
                         pressed: true,
                         ..
                     } => {
-			// enclose selection in parenthesis and
-			// jump to opening ...
-			let selection = selected_str(text, &cursorp).clone().to_string();
-			let selection_len = selection.len();
-			let mut ccursor = delete_selected(text, &cursorp);
-			insert_text(&mut ccursor, text, format!("({})", selection).as_str());
-			// clear selection
-			state.selection_toggle = false;
-			// go to opening paren so the function name can be entered ... 
-			ccursor.index -= selection_len + 1;			    
-			Some(CCursorPair::one(ccursor))
-		    }
-		    Event::Key {
+                        // enclose selection in parenthesis and
+                        // jump to opening ...
+                        let selection = selected_str(text, &cursorp).clone().to_string();
+                        let selection_len = selection.len();
+                        let mut ccursor = delete_selected(text, &cursorp);
+                        insert_text(&mut ccursor, text, format!("({})", selection).as_str());
+                        // clear selection
+                        state.selection_toggle = false;
+                        // go to opening paren so the function name can be entered ...
+                        ccursor.index -= selection_len + 1;
+                        Some(CCursorPair::one(ccursor))
+                    }
+                    Event::Key {
                         key: Key::LSquareBrack, // electric parenthesis for s-expression languages ...
                         pressed: true,
                         ..
                     } => {
-			// enclose selection in parenthesis and
-			// jump to opening ...
-			let selection = selected_str(text, &cursorp).clone().to_string();
-			let selection_len = selection.len();
-			let mut ccursor = delete_selected(text, &cursorp);
-			insert_text(&mut ccursor, text, format!("[{}]", selection).as_str());
-			// clear selection
-			state.selection_toggle = false;
-			// go to opening paren so the function name can be entered ... 
-			ccursor.index -= selection_len + 1;			    
-			Some(CCursorPair::one(ccursor))
-		    }
-		    Event::Key {
+                        // enclose selection in parenthesis and
+                        // jump to opening ...
+                        let selection = selected_str(text, &cursorp).clone().to_string();
+                        let selection_len = selection.len();
+                        let mut ccursor = delete_selected(text, &cursorp);
+                        insert_text(&mut ccursor, text, format!("[{}]", selection).as_str());
+                        // clear selection
+                        state.selection_toggle = false;
+                        // go to opening paren so the function name can be entered ...
+                        ccursor.index -= selection_len + 1;
+                        Some(CCursorPair::one(ccursor))
+                    }
+                    Event::Key {
                         key: Key::DoubleQuote, // electric parenthesis for s-expression languages ...
                         pressed: true,
                         ..
                     } => {
-			// enclose selection in parenthesis and
-			// jump to opening ...
-			let selection = selected_str(text, &cursorp).clone().to_string();
-			let selection_len = selection.len();
-			let mut ccursor = delete_selected(text, &cursorp);
-			insert_text(&mut ccursor, text, format!("\"{}\"", selection).as_str());
-			// clear selection
-			state.selection_toggle = false;
-			// go to opening paren so the function name can be entered ... 
-			ccursor.index -= selection_len + 1;			    
-			Some(CCursorPair::one(ccursor))
-		    }	
+                        // enclose selection in parenthesis and
+                        // jump to opening ...
+                        let selection = selected_str(text, &cursorp).clone().to_string();
+                        let selection_len = selection.len();
+                        let mut ccursor = delete_selected(text, &cursorp);
+                        insert_text(&mut ccursor, text, format!("\"{}\"", selection).as_str());
+                        // clear selection
+                        state.selection_toggle = false;
+                        // go to opening paren so the function name can be entered ...
+                        ccursor.index -= selection_len + 1;
+                        Some(CCursorPair::one(ccursor))
+                    }
                     Event::Key {
                         key: Key::Enter,
                         pressed: true,
                         modifiers,
                     } => {
-			// clear selection
-			state.selection_toggle = false;
-			if modifiers.command {
-			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
-				let cup = CursorPair {
-				    primary: galley.from_ccursor(sexp_cursors.primary),
- 				    secondary: galley.from_ccursor(sexp_cursors.secondary),
-				};
-				
-				// flash selected sexp ...				
-				let sel = selected_str(text, &cup);
-				state.flash_cursorp = Some(cup);
-				state.flash_alpha = 240; // set flash alpha ()
-				if let Some(cb) = eval_callback {
-				    let mut cb_loc = cb.lock();
-				    cb_loc(&sel.to_string());
-				} else {
-				    println!("no callback!");
-				}				
-			    } 			    			    
-			    break; // need to break here because of callback move ...
-			} else {
-			    // let's check if we're in an s-expression
-			    if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
-				let mut ccursorp = cursorp.as_ccursorp();
-				// only need indentation, so let's get the text
-				// from the beginning of the current s-expression
-				// to the current cursor pos
-				let cup = CursorPair {
-				    primary: galley.from_ccursor(sexp_cursors.primary),
-				    secondary: galley.from_ccursor(ccursorp.primary),
-				};
-				// get indentation level
-				let indent_level = sexp_indent_level(selected_str(text, &cup));
-				// insert line break and indentation ...
-				insert_text(&mut ccursorp.secondary, text, "\n");
-				if indent_level != 0 {
-				    for _ in 0..indent_level {
-					insert_text(&mut ccursorp.secondary, text, "  ");
-				    }
-				}
-				Some(CCursorPair::one(ccursorp.secondary))
-			    } else {
-				let mut ccursor = delete_selected(text, &cursorp);
-				insert_text(&mut ccursor, text, "\n");
-				Some(CCursorPair::one(ccursor))
-			    }
-                        }			
+                        // clear selection
+                        state.selection_toggle = false;
+                        if modifiers.command {
+                            if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+                                let cup = CursorPair {
+                                    primary: galley.from_ccursor(sexp_cursors.primary),
+                                    secondary: galley.from_ccursor(sexp_cursors.secondary),
+                                };
+
+                                // flash selected sexp ...
+                                let sel = selected_str(text, &cup);
+                                state.flash_cursorp = Some(cup);
+                                state.flash_alpha = 240; // set flash alpha ()
+                                if let Some(cb) = eval_callback {
+                                    let mut cb_loc = cb.lock();
+                                    cb_loc(&sel.to_string());
+                                } else {
+                                    println!("no callback!");
+                                }
+                            }
+                            break; // need to break here because of callback move ...
+                        } else {
+                            // let's check if we're in an s-expression
+                            if let Some(sexp_cursors) = find_toplevel_sexp(text, &cursorp) {
+                                let mut ccursorp = cursorp.as_ccursorp();
+                                // only need indentation, so let's get the text
+                                // from the beginning of the current s-expression
+                                // to the current cursor pos
+                                let cup = CursorPair {
+                                    primary: galley.from_ccursor(sexp_cursors.primary),
+                                    secondary: galley.from_ccursor(ccursorp.primary),
+                                };
+                                // get indentation level
+                                let indent_level = sexp_indent_level(selected_str(text, &cup));
+                                // insert line break and indentation ...
+                                insert_text(&mut ccursorp.secondary, text, "\n");
+                                if indent_level != 0 {
+                                    for _ in 0..indent_level {
+                                        insert_text(&mut ccursorp.secondary, text, "  ");
+                                    }
+                                }
+                                Some(CCursorPair::one(ccursorp.secondary))
+                            } else {
+                                let mut ccursor = delete_selected(text, &cursorp);
+                                insert_text(&mut ccursor, text, "\n");
+                                Some(CCursorPair::one(ccursor))
+                            }
+                        }
                     }
                     Event::Key {
                         key: Key::Escape,
                         pressed: true,
                         ..
                     } => {
-			// clear selection
-			state.selection_toggle = false;
-			cursorp.secondary = cursorp.primary;
-                        //ui.memory().surrender_kb_focus(id);			
+                        // clear selection
+                        state.selection_toggle = false;
+                        cursorp.secondary = cursorp.primary;
+                        //ui.memory().surrender_kb_focus(id);
                         break;
                     }
                     Event::Key {
@@ -1012,104 +1021,138 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                             None
                         }
                     }
-		    
-		    Event::Key {
+
+                    Event::Key {
                         key: Key::ArrowLeft,
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowLeft, modifiers, false);
-			if !modifiers.shift && !state.selection_toggle {
-			    cursorp.secondary = cursorp.primary;
-			}
-			None
-		    }
-		    Event::Key {
+                        move_single_cursor(
+                            &mut cursorp.primary,
+                            &galley,
+                            Key::ArrowLeft,
+                            modifiers,
+                            false,
+                        );
+                        if !modifiers.shift && !state.selection_toggle {
+                            cursorp.secondary = cursorp.primary;
+                        }
+                        None
+                    }
+                    Event::Key {
                         key: Key::ArrowRight,
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers, false);
-			if !modifiers.shift && !state.selection_toggle {
-			    cursorp.secondary = cursorp.primary;
-			}
-			None
-		    }
-		    Event::Key {
+                        move_single_cursor(
+                            &mut cursorp.primary,
+                            &galley,
+                            Key::ArrowRight,
+                            modifiers,
+                            false,
+                        );
+                        if !modifiers.shift && !state.selection_toggle {
+                            cursorp.secondary = cursorp.primary;
+                        }
+                        None
+                    }
+                    Event::Key {
                         key: Key::F,
                         pressed: true,
                         modifiers,
                     } => {
-			if modifiers.ctrl {			    
-			    move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowRight, modifiers, true);
-			    if !modifiers.shift && !state.selection_toggle {
-				cursorp.secondary = cursorp.primary;
-			    }
-			}
-			None
-		    }
-		    Event::Key {
+                        if modifiers.ctrl {
+                            move_single_cursor(
+                                &mut cursorp.primary,
+                                &galley,
+                                Key::ArrowRight,
+                                modifiers,
+                                true,
+                            );
+                            if !modifiers.shift && !state.selection_toggle {
+                                cursorp.secondary = cursorp.primary;
+                            }
+                        }
+                        None
+                    }
+                    Event::Key {
                         key: Key::ArrowUp,
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowUp, modifiers, false);
-			if !modifiers.shift && !state.selection_toggle {
-			    cursorp.secondary = cursorp.primary;
-			}
-			None
-		    }
-		    Event::Key {
+                        move_single_cursor(
+                            &mut cursorp.primary,
+                            &galley,
+                            Key::ArrowUp,
+                            modifiers,
+                            false,
+                        );
+                        if !modifiers.shift && !state.selection_toggle {
+                            cursorp.secondary = cursorp.primary;
+                        }
+                        None
+                    }
+                    Event::Key {
                         key: Key::ArrowDown,
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::ArrowDown, modifiers, false);
-			if !modifiers.shift && !state.selection_toggle {
-			    cursorp.secondary = cursorp.primary;
-			}
-			None
-		    }
-		    Event::Key {
+                        move_single_cursor(
+                            &mut cursorp.primary,
+                            &galley,
+                            Key::ArrowDown,
+                            modifiers,
+                            false,
+                        );
+                        if !modifiers.shift && !state.selection_toggle {
+                            cursorp.secondary = cursorp.primary;
+                        }
+                        None
+                    }
+                    Event::Key {
                         key: Key::Home,
                         pressed: true,
                         modifiers,
                     } => {
-			
-			if modifiers.ctrl {
-			    // windows behavior
-			    cursorp.primary = Cursor::default();
-			} else {
-			    cursorp.primary = galley.cursor_begin_of_row(&cursorp.primary);
-			}
+                        if modifiers.ctrl {
+                            // windows behavior
+                            cursorp.primary = Cursor::default();
+                        } else {
+                            cursorp.primary = galley.cursor_begin_of_row(&cursorp.primary);
+                        }
 
-			// find next open paren ...
-			if let Some(par_idx) = find_next_open_paren_in_row(text.chars(), cursorp.primary.ccursor.index) {
-			    cursorp.primary.ccursor.index = if par_idx > 0 {
-				par_idx - 1
-			    } else {
-				par_idx
-			    };
-			}
-						
-			if !modifiers.shift && !state.selection_toggle {
-			    cursorp.secondary = cursorp.primary;
-			}
-			
-			Some(cursorp.as_ccursorp())
-		    }
-		    Event::Key {
+                        // find next open paren ...
+                        if let Some(par_idx) =
+                            find_next_open_paren_in_row(text.chars(), cursorp.primary.ccursor.index)
+                        {
+                            cursorp.primary.ccursor.index =
+                                if par_idx > 0 { par_idx - 1 } else { par_idx };
+                        }
+
+                        if !modifiers.shift && !state.selection_toggle {
+                            cursorp.secondary = cursorp.primary;
+                        }
+
+                        Some(cursorp.as_ccursorp())
+                    }
+                    Event::Key {
                         key: Key::End,
                         pressed: true,
                         modifiers,
                     } => {
-			move_single_cursor(&mut cursorp.primary, &galley, Key::End, modifiers, false);
-			if !modifiers.shift && !state.selection_toggle {
-			    cursorp.secondary = cursorp.primary;
-			}
-			None
-		    }
-		    
+                        move_single_cursor(
+                            &mut cursorp.primary,
+                            &galley,
+                            Key::End,
+                            modifiers,
+                            false,
+                        );
+                        if !modifiers.shift && !state.selection_toggle {
+                            cursorp.secondary = cursorp.primary;
+                        }
+                        None
+                    }
+
                     Event::Key {
                         key,
                         pressed: true,
@@ -1117,7 +1160,7 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
                     } => on_key_press(&mut cursorp, text, &galley, *key, modifiers),
 
                     //Event::Key { .. } => None,
-		    _ => None,
+                    _ => None,
                 };
 
                 if let Some(new_ccursorp) = did_mutate_text {
@@ -1140,93 +1183,145 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
         }
 
         if ui.memory().has_kb_focus(id) {
-            if let Some(cursorp) = state.cursorp {		
-		paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, ui.style().visuals.selection.bg_fill);
+            if let Some(cursorp) = state.cursorp {
+                paint_cursor_selection(
+                    ui,
+                    response.rect.min,
+                    &galley,
+                    &cursorp,
+                    ui.style().visuals.selection.bg_fill,
+                );
                 paint_cursor_end(ui, response.rect.min, &galley, &cursorp.primary);
             }
-	    if let Some(cursorp) = state.flash_cursorp {
-		if state.flash_alpha > 40 {
-		    paint_cursor_selection(ui, response.rect.min, &galley, &cursorp, Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha));
-		    state.flash_alpha -= 40;
-		}
-	    }
+            if let Some(cursorp) = state.flash_cursorp {
+                if state.flash_alpha > 40 {
+                    paint_cursor_selection(
+                        ui,
+                        response.rect.min,
+                        &galley,
+                        &cursorp,
+                        Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha),
+                    );
+                    state.flash_alpha -= 40;
+                }
+            }
         }
-	
+
         let default_color = text_color
             .or(ui.style().visuals.override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
             .unwrap_or_else(|| ui.style().visuals.widgets.inactive.text_color());
-	
-	let code_colors = generate_lisp_color_map(text, function_names);
-	let mut egui_colors = TextColorMap::new();
-			
-	for (k, v) in code_colors.iter() {
-	    //println!("{} {:?}", k,v );
-	    match v {
-		CodeColors::Function => {
-		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
-		}
-		CodeColors::Keyword => {
-		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
-		}
-		CodeColors::Comment => {
-		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
-		}
-		CodeColors::Boolean => {
-		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
-		},
-		CodeColors::String => {
-		    egui_colors.add_color_change_at_index(*k, if let Some(col) = colors.get(&v) {*col} else { Color32::from_rgb(240,120,59)});
-		}
-		_ => {		    
-		    egui_colors.add_color_change_at_index(*k, default_color);
-		}
-	    }
-	}
 
-	/*
-	if let Some(cursorp) = state.cursorp {
-	    
-	    let cursor_pos = galley.pos_from_cursor(&cursorp.primary);
-	    
-	    let mut screen_rect = response.rect; 
-	    let mut clip_rect = ui.painter().clip_rect().clone();
-	    // not sure why the 32 pixel offset is nevessary, maybe because of the header ?
-	    let vis_rect_min_y = clip_rect.min.y - screen_rect.min.y + 3.0;
-	    let vis_rect_max_y = clip_rect.max.y - screen_rect.min.y + 3.0;
-	    	    
-	    let cursor_left_top = cursor_pos.min.y < vis_rect_min_y;		    
-	    let cursor_left_bottom = cursor_pos.max.y >= vis_rect_max_y;
-	    //let cursor_height = cursor_pos.max.y - cursor_pos.min.y;	    
-	    let is_cursor_visible = !cursor_left_top && !cursor_left_bottom;
-	    
-	    println!("vis rect: {} {} curs: {} {} left top: {} left bottom: {}, vis: {}",
-		     vis_rect_min_y,
-		     vis_rect_max_y,
-		     cursor_pos.min.y,
-		     cursor_pos.max.y,
-		     //cursor_height,
-		     cursor_left_top,
-		     cursor_left_bottom,
-		     is_cursor_visible,
-		     //state.y_offset
-		      //screen_rect.min.y
-	    );
-	     			    
-	    if cursor_left_top{		
-		ui.scroll_to_y(-cursor_pos.min.y, Align::top());
-	    }
-	    
-	    if cursor_left_bottom {		
-		ui.scroll_to_y(cursor_pos.max.y, Align::bottom());		
-	    }
-	}*/
-	
-	ui.painter()
-            .multicolor_galley(response.rect.min, galley, text_style, egui_colors, default_color);
+        let code_colors = generate_lisp_color_map(text, function_names);
+        let mut egui_colors = TextColorMap::new();
+
+        for (k, v) in code_colors.iter() {
+            //println!("{} {:?}", k,v );
+            match v {
+                CodeColors::Function => {
+                    egui_colors.add_color_change_at_index(
+                        *k,
+                        if let Some(col) = colors.get(&v) {
+                            *col
+                        } else {
+                            Color32::from_rgb(240, 120, 59)
+                        },
+                    );
+                }
+                CodeColors::Keyword => {
+                    egui_colors.add_color_change_at_index(
+                        *k,
+                        if let Some(col) = colors.get(&v) {
+                            *col
+                        } else {
+                            Color32::from_rgb(240, 120, 59)
+                        },
+                    );
+                }
+                CodeColors::Comment => {
+                    egui_colors.add_color_change_at_index(
+                        *k,
+                        if let Some(col) = colors.get(&v) {
+                            *col
+                        } else {
+                            Color32::from_rgb(240, 120, 59)
+                        },
+                    );
+                }
+                CodeColors::Boolean => {
+                    egui_colors.add_color_change_at_index(
+                        *k,
+                        if let Some(col) = colors.get(&v) {
+                            *col
+                        } else {
+                            Color32::from_rgb(240, 120, 59)
+                        },
+                    );
+                }
+                CodeColors::String => {
+                    egui_colors.add_color_change_at_index(
+                        *k,
+                        if let Some(col) = colors.get(&v) {
+                            *col
+                        } else {
+                            Color32::from_rgb(240, 120, 59)
+                        },
+                    );
+                }
+                _ => {
+                    egui_colors.add_color_change_at_index(*k, default_color);
+                }
+            }
+        }
+
+        /*
+        if let Some(cursorp) = state.cursorp {
+
+            let cursor_pos = galley.pos_from_cursor(&cursorp.primary);
+
+            let mut screen_rect = response.rect;
+            let mut clip_rect = ui.painter().clip_rect().clone();
+            // not sure why the 32 pixel offset is nevessary, maybe because of the header ?
+            let vis_rect_min_y = clip_rect.min.y - screen_rect.min.y + 3.0;
+            let vis_rect_max_y = clip_rect.max.y - screen_rect.min.y + 3.0;
+
+            let cursor_left_top = cursor_pos.min.y < vis_rect_min_y;
+            let cursor_left_bottom = cursor_pos.max.y >= vis_rect_max_y;
+            //let cursor_height = cursor_pos.max.y - cursor_pos.min.y;
+            let is_cursor_visible = !cursor_left_top && !cursor_left_bottom;
+
+            println!("vis rect: {} {} curs: {} {} left top: {} left bottom: {}, vis: {}",
+                 vis_rect_min_y,
+                 vis_rect_max_y,
+                 cursor_pos.min.y,
+                 cursor_pos.max.y,
+                 //cursor_height,
+                 cursor_left_top,
+                 cursor_left_bottom,
+                 is_cursor_visible,
+                 //state.y_offset
+                  //screen_rect.min.y
+            );
+
+            if cursor_left_top{
+            ui.scroll_to_y(-cursor_pos.min.y, Align::top());
+            }
+
+            if cursor_left_bottom {
+            ui.scroll_to_y(cursor_pos.max.y, Align::bottom());
+            }
+        }*/
+
+        ui.painter().multicolor_galley(
+            response.rect.min,
+            galley,
+            text_style,
+            egui_colors,
+            default_color,
+        );
 
         ui.memory().text_edit.insert(id, state);
-        		
+
         Response {
             lost_kb_focus: ui.memory().lost_kb_focus(id), // we may have lost it during the course of this function
             ..response
@@ -1236,7 +1331,13 @@ impl<'t> Widget for LivecodeTextEdit<'t>  {
 
 // ----------------------------------------------------------------------------
 
-fn paint_cursor_selection(ui: &mut Ui, pos: Pos2, galley: &Galley, cursorp: &CursorPair, color: Color32) {
+fn paint_cursor_selection(
+    ui: &mut Ui,
+    pos: Pos2,
+    galley: &Galley,
+    cursorp: &CursorPair,
+    color: Color32,
+) {
     if cursorp.is_empty() {
         return;
     }
@@ -1375,7 +1476,7 @@ fn delete_next_word(text: &mut String, min_ccursor: CCursor) -> CCursor {
     delete_selected_ccursor_range(text, [min_ccursor, max_ccursor])
 }
 
-fn delete_paragraph_before_cursor (
+fn delete_paragraph_before_cursor(
     text: &mut String,
     galley: &Galley,
     cursorp: &CursorPair,
@@ -1419,7 +1520,7 @@ fn on_key_press(
     text: &mut String,
     galley: &Galley,
     key: Key,
-    modifiers: &Modifiers,    
+    modifiers: &Modifiers,
 ) -> Option<CCursorPair> {
     match key {
         Key::Backspace => {
@@ -1430,29 +1531,26 @@ fn on_key_press(
                     // alt on mac, ctrl on windows
                     delete_previous_word(text, cursor.ccursor)
                 } else {
-		    // this seems inefficient ... 
-		    if let Some(cur_char) = text.chars().nth(cursor.ccursor.index - 1) {
-			//println!("cur char {}", cur_char);
-			if let Some(next_char) = text.chars().nth(cursor.ccursor.index) {
-			    //println!("next char {}", next_char);
-			    if (cur_char == '(' && next_char == ')')
-				|| (cur_char == '[' && next_char == ']')
-				|| (cur_char == '\"' && next_char == '\"') {
-				    let icur = delete_previous_char(text, cursor.ccursor);
-				    delete_next_char(text, icur)
-				} else {
-				    delete_previous_char(text, cursor.ccursor)
-				}
-			} else {
-			    delete_previous_char(text, cursor.ccursor)
-			}
-		    } else {
-			delete_previous_char(text, cursor.ccursor)
-		    }
-		    
-		    
-		    
-                    
+                    // this seems inefficient ...
+                    if let Some(cur_char) = text.chars().nth(cursor.ccursor.index - 1) {
+                        //println!("cur char {}", cur_char);
+                        if let Some(next_char) = text.chars().nth(cursor.ccursor.index) {
+                            //println!("next char {}", next_char);
+                            if (cur_char == '(' && next_char == ')')
+                                || (cur_char == '[' && next_char == ']')
+                                || (cur_char == '\"' && next_char == '\"')
+                            {
+                                let icur = delete_previous_char(text, cursor.ccursor);
+                                delete_next_char(text, icur)
+                            } else {
+                                delete_previous_char(text, cursor.ccursor)
+                            }
+                        } else {
+                            delete_previous_char(text, cursor.ccursor)
+                        }
+                    } else {
+                        delete_previous_char(text, cursor.ccursor)
+                    }
                 }
             } else {
                 delete_selected(text, cursorp)
@@ -1478,7 +1576,7 @@ fn on_key_press(
             };
             Some(CCursorPair::one(ccursor))
         }
-	
+
         Key::A if modifiers.command => {
             // select all
             *cursorp = CursorPair::two(Cursor::default(), galley.end());
@@ -1494,7 +1592,7 @@ fn on_key_press(
             let ccursor = delete_paragraph_before_cursor(text, galley, cursorp);
             Some(CCursorPair::one(ccursor))
         }
-        
+
         Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End => {
             move_single_cursor(&mut cursorp.primary, galley, key, modifiers, false);
             if !modifiers.shift {
@@ -1507,7 +1605,13 @@ fn on_key_press(
     }
 }
 
-fn move_single_cursor(cursor: &mut Cursor, galley: &Galley, key: Key, modifiers: &Modifiers, clear_modifiers: bool) {
+fn move_single_cursor(
+    cursor: &mut Cursor,
+    galley: &Galley,
+    key: Key,
+    modifiers: &Modifiers,
+    clear_modifiers: bool,
+) {
     match key {
         Key::ArrowLeft => {
             if modifiers.alt || modifiers.ctrl {
@@ -1551,7 +1655,7 @@ fn move_single_cursor(cursor: &mut Cursor, galley: &Galley, key: Key, modifiers:
                 *cursor = Cursor::default();
             } else {
                 *cursor = galley.cursor_begin_of_row(cursor);
-            }	    
+            }
         }
         Key::End => {
             if modifiers.ctrl {
@@ -1603,17 +1707,16 @@ fn select_word_at(text: &str, ccursor: CCursor) -> CCursorPair {
     }
 }
 
-
 /// find toplevel s-expression from current cursor position ...
 fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     let [min, _] = cursorp.sorted();
-    
+
     let mut pos = min.ccursor.index;
     let mut rev_pos = text.len() - pos;
-        
+
     let mut it_l = text.chars().rev();
     let mut it_r = text.chars();
-    
+
     let mut l_pos = pos;
     let mut r_pos = pos;
     let mut last_closing = pos;
@@ -1624,182 +1727,178 @@ fn find_toplevel_sexp(text: &str, cursorp: &CursorPair) -> Option<CCursorPair> {
     // special case: if the cursor is right on an opening paren,
     // move one right ...
     if let Some(cur_chars) = text.get(pos..(pos + 1)) {
-	if let Some(cur_char) = cur_chars.chars().next() {
-	    if cur_char == '(' {		
-		rev_pos =  text.len() - (pos + 1);
-		l_pos = pos + 1;
-		r_pos = pos + 1;
-		last_closing = pos + 1;
-		last_opening = pos + 1;
-		pos = pos + 1;
-	    }
-	}
+        if let Some(cur_char) = cur_chars.chars().next() {
+            if cur_char == '(' {
+                rev_pos = text.len() - (pos + 1);
+                l_pos = pos + 1;
+                r_pos = pos + 1;
+                last_closing = pos + 1;
+                last_opening = pos + 1;
+                pos = pos + 1;
+            }
+        }
     }
-        
+
     for _ in 0..rev_pos {
-	it_l.next();
+        it_l.next();
     }
 
-    for _ in 0..pos {	
-	it_r.next();
+    for _ in 0..pos {
+        it_r.next();
     }
 
-    let mut balance:i32 = 0;
+    let mut balance: i32 = 0;
     // beginning: lparen right after newline
     let mut lparen_found = false;
     while let Some(l_char) = it_l.next() {
-	
-	if l_char == '\n' && lparen_found { // two newlines - assume end
-	    break;
-	} else if l_char == '(' {
-	    sexp_found = true;
-	    l_pos -= 1;
-	    last_opening = l_pos;
-	    balance += 1;
-	    lparen_found = true;
-	} else if l_char == ')' {	    
-	    l_pos -= 1;
-	    balance -= 1;
-	    lparen_found = false;	    
-	} else {
-	    l_pos -= 1;
-	    lparen_found = false;	    
-	}	
+        if l_char == '\n' && lparen_found {
+            // two newlines - assume end
+            break;
+        } else if l_char == '(' {
+            sexp_found = true;
+            l_pos -= 1;
+            last_opening = l_pos;
+            balance += 1;
+            lparen_found = true;
+        } else if l_char == ')' {
+            l_pos -= 1;
+            balance -= 1;
+            lparen_found = false;
+        } else {
+            l_pos -= 1;
+            lparen_found = false;
+        }
     }
 
     while let Some(r_char) = it_r.next() {
-	if r_char == '(' {	    
-	    r_pos += 1;
-	    balance += 1;	
-	} else if r_char == ')' {	    
-	    r_pos += 1;
-	    last_closing = r_pos;
-	    balance -= 1;
-	} else {
-	    r_pos += 1;
-	}
-	
-	if balance == 0 {
-	    break;
-	}
+        if r_char == '(' {
+            r_pos += 1;
+            balance += 1;
+        } else if r_char == ')' {
+            r_pos += 1;
+            last_closing = r_pos;
+            balance -= 1;
+        } else {
+            r_pos += 1;
+        }
+
+        if balance == 0 {
+            break;
+        }
     }
-    
+
     if balance == 0 && sexp_found {
-	let left = CCursor {
+        let left = CCursor {
             index: last_opening,
             prefer_next_row: true,
-	};
-	let right = CCursor {
+        };
+        let right = CCursor {
             index: last_closing,
             prefer_next_row: false,
-	};
-	Some(CCursorPair::two(right, left))
+        };
+        Some(CCursorPair::two(right, left))
     } else {
-	None
+        None
     }
 }
-
 
 /// format an s-expression (content-agnostic)
 fn format_sexp(input: &str) -> String {
     let mut lvl = 0;
     let mut out = "".to_string();
     let mut no_whitespace = false;
-    
-    for c in input.chars(){
-	match c {
-	    '(' => {
-		lvl += 1;
-		out.push(c);
-		no_whitespace = false;
-	    },
-	    ')' => {
-		lvl -= 1;
-		out.push(c);
-		no_whitespace = false;
-	    },
-	    '\n' => {
-		out.push(c);
-		no_whitespace = true;		
-		for _ in 0..lvl {
-		    out.push(' ');
-		    out.push(' ');
-		}
-	    },
-	    ' ' => {	
-		if !no_whitespace {
-		    out.push(c);
-		    no_whitespace = true;
-		}		
-	    },
-	    '\t' => {
-		// ignore tabs
-	    },
-	    _ => {		
-		out.push(c);
-		no_whitespace = false;
-	    },
-	}
+
+    for c in input.chars() {
+        match c {
+            '(' => {
+                lvl += 1;
+                out.push(c);
+                no_whitespace = false;
+            }
+            ')' => {
+                lvl -= 1;
+                out.push(c);
+                no_whitespace = false;
+            }
+            '\n' => {
+                out.push(c);
+                no_whitespace = true;
+                for _ in 0..lvl {
+                    out.push(' ');
+                    out.push(' ');
+                }
+            }
+            ' ' => {
+                if !no_whitespace {
+                    out.push(c);
+                    no_whitespace = true;
+                }
+            }
+            '\t' => {
+                // ignore tabs
+            }
+            _ => {
+                out.push(c);
+                no_whitespace = false;
+            }
+        }
     }
     out
 }
 
-
 /// get the level of indentation needed up to the end of the
-/// slice. 
+/// slice.
 fn sexp_indent_level(input: &str) -> usize {
-    let mut lvl = 0;    
+    let mut lvl = 0;
     for c in input.chars() {
-	match c {
-	    '(' => {
-		lvl += 1;		
-		
-	    },
-	    ')' => {
-		lvl -= 1;		
-		
-	    },	    
-	    _ => {},
-	}
+        match c {
+            '(' => {
+                lvl += 1;
+            }
+            ')' => {
+                lvl -= 1;
+            }
+            _ => {}
+        }
     }
     lvl
 }
 
 /// primitive ad-hoc color map generator
-fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap<usize, CodeColors> {
+fn generate_lisp_color_map(input: &str, function_names: &Vec<&str>) -> BTreeMap<usize, CodeColors> {
     let mut color_map = BTreeMap::new();
-    
+
     color_map.insert(0, CodeColors::Normal);
-    
+
     for (i, _) in input.match_indices(":") {
-	color_map.insert(i, CodeColors::Keyword);
+        color_map.insert(i, CodeColors::Keyword);
     }
-    
+
     for (i, _) in input.match_indices("#") {
-	color_map.insert(i, CodeColors::Boolean);
+        color_map.insert(i, CodeColors::Boolean);
     }
 
     for (i, _) in input.match_indices(";") {
-	color_map.insert(i, CodeColors::Comment);
+        color_map.insert(i, CodeColors::Comment);
     }
 
     for f in function_names.iter() {
-	for (i, _) in input.match_indices(f) {
-	    color_map.insert(i, CodeColors::Function);
-	}
+        for (i, _) in input.match_indices(f) {
+            color_map.insert(i, CodeColors::Function);
+        }
     }
 
     for (i, _) in input.match_indices('\n') {
-	color_map.insert(i, CodeColors::Linebreak);	
+        color_map.insert(i, CodeColors::Linebreak);
     }
 
     for (i, _) in input.match_indices('\"') {
-	color_map.insert(i, CodeColors::String);	
+        color_map.insert(i, CodeColors::String);
     }
 
-    // clear 
+    // clear
     for (i, _) in input.match_indices(|c| c == ' ' || c == '(' || c == ')') {
-	color_map.insert(i, CodeColors::Normal);	
+        color_map.insert(i, CodeColors::Normal);
     }
 
     let mut color_map_clean = BTreeMap::new();
@@ -1808,41 +1907,41 @@ fn generate_lisp_color_map (input: &str, function_names: &Vec<&str>) -> BTreeMap
     let mut found_normal = false;
     let mut found_string = false;
 
-    for (k,v) in color_map.iter() {
-	match v {
-	    CodeColors::Comment => {
-		if !found_string {
-		    color_map_clean.insert(*k,*v);
-		    found_comment = true;
-		    found_normal = false;
-		}
-	    },
-	    CodeColors::String => {
-		if !found_string {
-		    color_map_clean.insert(*k,*v);
-		    found_string = true;
-		} else {
-		    found_string = false;
-		}
-		
-		found_normal = false;
-	    },
-	    CodeColors::Normal => {
-		if !found_normal && !found_comment && !found_string {
-		    color_map_clean.insert(*k,*v);
-		    found_normal = true;
-		}				
-	    },
-	    CodeColors::Linebreak => {	
-		found_comment = false;
-	    },
-	    _ => {
-		if !found_comment && !found_string {
-		    color_map_clean.insert(*k,*v);
-		    found_normal = false;
-		}		
-	    }
-	}	
+    for (k, v) in color_map.iter() {
+        match v {
+            CodeColors::Comment => {
+                if !found_string {
+                    color_map_clean.insert(*k, *v);
+                    found_comment = true;
+                    found_normal = false;
+                }
+            }
+            CodeColors::String => {
+                if !found_string {
+                    color_map_clean.insert(*k, *v);
+                    found_string = true;
+                } else {
+                    found_string = false;
+                }
+
+                found_normal = false;
+            }
+            CodeColors::Normal => {
+                if !found_normal && !found_comment && !found_string {
+                    color_map_clean.insert(*k, *v);
+                    found_normal = true;
+                }
+            }
+            CodeColors::Linebreak => {
+                found_comment = false;
+            }
+            _ => {
+                if !found_comment && !found_string {
+                    color_map_clean.insert(*k, *v);
+                    found_normal = false;
+                }
+            }
+        }
     }
     color_map_clean
 }
@@ -1883,13 +1982,13 @@ fn next_word_boundary_char_index(it: impl Iterator<Item = char>, mut index: usiz
 
 fn find_next_open_paren_in_row(it: impl Iterator<Item = char>, mut index: usize) -> Option<usize> {
     let mut it = it.skip(index);
-    while let Some(first) = it.next() {	
-	index += 1;
-	if first == '(' {
-	    return Some(index);
-	} else if first == '\n' {
-	    break;
-	}	
+    while let Some(first) = it.next() {
+        index += 1;
+        if first == '(' {
+            return Some(index);
+        } else if first == '\n' {
+            break;
+        }
     }
     None
 }

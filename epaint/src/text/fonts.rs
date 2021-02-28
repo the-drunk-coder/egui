@@ -109,9 +109,9 @@ impl Default for FontDefinitions {
         #[cfg(feature = "default_fonts")]
         {
             // TODO: figure out a way to make the WASM smaller despite including fonts. Zip them?
-	    font_data.insert(
-		"ComicMono".to_owned(),
-		std::borrow::Cow::Borrowed(include_bytes!("../../fonts/ComicMono.ttf")),
+            font_data.insert(
+                "ComicMono".to_owned(),
+                std::borrow::Cow::Borrowed(include_bytes!("../../fonts/ComicMono.ttf")),
             );
             // Use size 13 for this. NOTHING ELSE:
             font_data.insert(

@@ -330,7 +330,7 @@ impl Visuals {
             widgets: Widgets::default(),
             selection: Selection::default(),
             extreme_bg_color: Color32::from_gray(10),
-            hyperlink_color: Color32::from_rgb(90, 170, 255),            
+            hyperlink_color: Color32::from_rgb(90, 170, 255),
             code_bg_color: Color32::from_gray(64),
             window_corner_radius: 0.0,
             window_shadow: Shadow::big_dark(),
@@ -393,7 +393,7 @@ impl Widgets {
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(65)), // window outline
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(160)), // text color
                 corner_radius: 4.0,
-                expansion: 0.0,                            		
+                expansion: 0.0,
             },
             inactive: WidgetVisuals {
                 bg_fill: Color32::BLACK,

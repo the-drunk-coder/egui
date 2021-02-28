@@ -263,7 +263,7 @@ impl Prepared {
             let margin = animation_t * ui.spacing().item_spacing.x;
             let left = inner_rect.right() + margin;
             let right = outer_rect.right();
-            let corner_radius:f32 = 0.5; // fix corner_radius
+            let corner_radius: f32 = 0.5; // fix corner_radius
             let top = inner_rect.top();
             let bottom = inner_rect.bottom();
 

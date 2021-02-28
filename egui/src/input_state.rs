@@ -68,7 +68,6 @@ impl Default for InputState {
     }
 }
 
-
 /// Mouse (or touch) state.
 #[derive(Clone, Debug)]
 pub struct CursorState {
