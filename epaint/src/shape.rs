@@ -45,7 +45,8 @@ pub enum Shape {
         /// The layed out text
         galley: Galley,
         text_style: TextStyle, // TODO: Font?
-        color: Color32,
+        color_map: TextColorMap,
+        default_color: Color32,
         /// If true, tilt the letters for an ugly italics effect
         fake_italics: bool,
     },
@@ -148,7 +149,8 @@ impl Shape {
             pos: rect.min,
             galley,
             text_style,
-            color,
+            default_color: color,
+            color_map: TextColorMap::default(),
             fake_italics: false,
         }
     }

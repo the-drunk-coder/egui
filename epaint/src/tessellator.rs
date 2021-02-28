@@ -568,7 +568,8 @@ impl Tessellator {
                 pos,
                 galley,
                 text_style,
-                color,
+                color_map,
+                default_color,
                 fake_italics,
             } => {
                 if options.debug_paint_text_rects {
@@ -577,12 +578,21 @@ impl Tessellator {
                             rect: Rect::from_min_size(pos, galley.size).expand(0.5),
                             corner_radius: 2.0,
                             fill: Default::default(),
-                            stroke: (0.5, color).into(),
+                            stroke: (0.5, default_color).into(),
                         },
                         out,
                     );
                 }
-                self.tessellate_text(fonts, pos, &galley, text_style, color, fake_italics, out);
+                self.tessellate_text(
+                    fonts,
+                    pos,
+                    &galley,
+                    text_style,
+                    default_color,
+                    color_map,
+                    fake_italics,
+                    out,
+                );
             }
             Shape::MulticolorText {
                 pos,
@@ -652,11 +662,12 @@ impl Tessellator {
         pos: Pos2,
         galley: &super::Galley,
         text_style: super::TextStyle,
-        color: Color32,
+        default_color: Color32,
+        color_map: TextColorMap,
         fake_italics: bool,
         out: &mut Mesh,
     ) {
-        if color == Color32::TRANSPARENT {
+        if default_color == Color32::TRANSPARENT && color_map.is_empty() {
             return;
         }
         galley.sanity_check();
@@ -671,14 +682,23 @@ impl Tessellator {
         let clip_rect = self.clip_rect.expand(2.0); // Some fudge to handle letters that are slightly larger than expected.
 
         let font = &fonts[text_style];
+
         let mut chars = galley.text.chars();
+        let mut char_count = 0;
+        let mut color = default_color;
+
         for line in &galley.rows {
             let line_min_y = pos.y + line.y_min;
             let line_max_y = line_min_y + font.row_height();
             let is_line_visible = line_max_y >= clip_rect.min.y && line_min_y <= clip_rect.max.y;
 
             for x_offset in line.x_offsets.iter().take(line.x_offsets.len() - 1) {
+                if let Some(col) = color_map.get_color_change_at_index(char_count) {
+                    color = *col;
+                }
+
                 let c = chars.next().unwrap();
+                char_count += 1;
 
                 if self.options.coarse_tessellation_culling && !is_line_visible {
                     // culling individual lines of text is important, since a single `Shape::Text`
