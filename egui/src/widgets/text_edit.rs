@@ -332,7 +332,7 @@ impl<'t> TextEdit<'t> {
         } else {
             Sense::hover()
         };
-        let response = ui.interact(rect, id, sense);
+        let mut response = ui.interact(rect, id, sense);
 
         if enabled {
             ui.memory().interested_in_kb_focus(id);
@@ -345,7 +345,10 @@ impl<'t> TextEdit<'t> {
 
                 let cursor_at_pointer = galley.cursor_from_pos(pointer_pos - response.rect.min);
 
-                if response.hovered() && ui.input().pointer.is_moving() {
+                if ui.visuals().text_cursor_preview
+                    && response.hovered()
+                    && ui.input().pointer.is_moving()
+                {
                     // preview:
                     paint_cursor_end(ui, response.rect.min, &galley, &cursor_at_pointer);
                 }
@@ -358,6 +361,7 @@ impl<'t> TextEdit<'t> {
                         primary: galley.from_ccursor(ccursorp.primary),
                         secondary: galley.from_ccursor(ccursorp.secondary),
                     });
+                    response.mark_changed();
                 } else if response.hovered() && ui.input().pointer.any_pressed() {
                     ui.memory().request_kb_focus(id);
                     if ui.input().modifiers.shift {
@@ -369,9 +373,11 @@ impl<'t> TextEdit<'t> {
                     } else {
                         state.cursorp = Some(CursorPair::one(cursor_at_pointer));
                     }
+                    response.mark_changed();
                 } else if ui.input().pointer.any_down() && response.is_pointer_button_down_on() {
                     if let Some(cursorp) = &mut state.cursorp {
                         cursorp.primary = cursor_at_pointer;
+                        response.mark_changed();
                     }
                 }
             }
@@ -496,6 +502,8 @@ impl<'t> TextEdit<'t> {
                 };
 
                 if let Some(new_ccursorp) = did_mutate_text {
+                    response.mark_changed();
+
                     // Layout again to avoid frame delay, and to keep `text` and `galley` in sync.
                     let font = &ui.fonts()[text_style];
                     galley = if multiline {
