@@ -202,7 +202,7 @@ impl Focus {
                     self.pressed_tab = true;
                 }
             }
-        }*/
+        }
     }
 
     pub(crate) fn end_frame(&mut self, used_ids: &epaint::ahash::AHashMap<Id, Pos2>) {

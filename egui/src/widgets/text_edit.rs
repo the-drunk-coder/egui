@@ -536,7 +536,7 @@ impl<'t> TextEdit<'t> {
         }
 
         ui.memory().text_edit.insert(id, state);
-
+	
         response.widget_info(|| WidgetInfo::text_edit(&*text));
         response
     }
@@ -552,7 +552,7 @@ use parking_lot::Mutex;
 /// # let mut ui = egui::Ui::__test();
 /// # let mut my_string = String::new();
 /// let response = ui.add(egui::TextEdit::singleline(&mut my_string));
-/// if response.lost_kb_focus {
+/// if response.lost_focus {
 ///     // use my_string
 /// }
 /// ```
@@ -719,7 +719,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
         let response = ui.interact(rect, id, sense);
 
         if enabled {
-            ui.memory().interested_in_kb_focus(id);
+            ui.memory().interested_in_focus(id);
         }
 
         if enabled {
@@ -735,7 +735,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
                         secondary: galley.from_ccursor(ccursorp.secondary),
                     });
                 } else if response.hovered && ui.input().pointer.any_pressed() {
-                    ui.memory().request_kb_focus(id);
+                    ui.memory().request_focus(id);
                     if ui.input().modifiers.shift {
                         if let Some(cursorp) = &mut state.cursorp {
                             cursorp.primary = cursor_at_pointer;
@@ -755,18 +755,18 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
 
         if ui.input().pointer.any_pressed() && !response.hovered {
             // User clicked somewhere else
-            ui.memory().surrender_kb_focus(id);
+            ui.memory().surrender_focus(id);
         }
 
         if !enabled {
-            ui.memory().surrender_kb_focus(id);
+            ui.memory().surrender_focus(id);
         }
 
         if response.hovered && enabled {
             ui.output().cursor_icon = CursorIcon::Text;
         }
 
-        if ui.memory().has_kb_focus(id) && enabled {
+        if ui.memory().has_focus(id) && enabled {
             let mut cursorp = state
                 .cursorp
                 .map(|cursorp| {
@@ -974,7 +974,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
                         // clear selection
                         state.selection_toggle = false;
                         cursorp.secondary = cursorp.primary;
-                        //ui.memory().surrender_kb_focus(id);
+                        //ui.memory().surrender_focus(id);
                         break;
                     }
                     Event::Key {
@@ -1153,7 +1153,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
                 .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));
         }
 
-        if ui.memory().has_kb_focus(id) {
+        if ui.memory().has_focus(id) {
             if let Some(cursorp) = state.cursorp {
                 paint_cursor_selection(
                     ui,
@@ -1291,12 +1291,8 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             default_color,
         );
 
-        ui.memory().text_edit.insert(id, state);
-
-        Response {
-            lost_kb_focus: ui.memory().lost_kb_focus(id), // we may have lost it during the course of this function
-            ..response
-        }
+        ui.memory().text_edit.insert(id, state);        
+        response        
     }
 }
 
