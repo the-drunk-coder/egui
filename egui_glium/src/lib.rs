@@ -15,18 +15,19 @@ pub mod http;
 mod painter;
 #[cfg(feature = "persistence")]
 pub mod persistence;
+pub mod screen_reader;
 pub mod window_settings;
 
 pub use backend::*;
 pub use painter::Painter;
 
 use {
-    clipboard::ClipboardProvider,
+    copypasta::ClipboardProvider,
     egui::*,
     glium::glutin::{self, event::VirtualKeyCode, event_loop::ControlFlow},
 };
 
-pub use clipboard::ClipboardContext; // TODO: remove
+pub use copypasta::ClipboardContext; // TODO: remove
 
 pub struct GliumInputState {
     pub pointer_pos_in_points: Option<Pos2>,
@@ -311,8 +312,8 @@ pub fn handle_output(
     display: &glium::backend::glutin::Display,
     clipboard: Option<&mut ClipboardContext>,
 ) {
-    if let Some(url) = output.open_url {
-        if let Err(err) = webbrowser::open(&url) {
+    if let Some(open) = output.open_url {
+        if let Err(err) = webbrowser::open(&open.url) {
             eprintln!("Failed to open url: {}", err);
         }
     }

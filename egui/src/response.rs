@@ -60,12 +60,6 @@ pub struct Response {
     /// `None` if the widget is not being interacted with.
     pub(crate) interact_pointer_pos: Option<Pos2>,
 
-    /// This widget has the keyboard focus (i.e. is receiving key presses).
-    pub(crate) has_kb_focus: bool,
-
-    /// The widget had keyboard focus and lost it.
-    pub(crate) lost_kb_focus: bool,
-
     /// What the underlying data changed?
     /// e.g. the slider was dragged, text was entered in a `TextEdit` etc.
     /// Always `false` for something like a `Button`.
@@ -88,8 +82,6 @@ impl std::fmt::Debug for Response {
             drag_released,
             is_pointer_button_down_on,
             interact_pointer_pos,
-            has_kb_focus,
-            lost_kb_focus,
             changed,
         } = self;
         f.debug_struct("Response")
@@ -105,8 +97,6 @@ impl std::fmt::Debug for Response {
             .field("drag_released", drag_released)
             .field("is_pointer_button_down_on", is_pointer_button_down_on)
             .field("interact_pointer_pos", interact_pointer_pos)
-            .field("has_kb_focus", has_kb_focus)
-            .field("lost_kb_focus", lost_kb_focus)
             .field("changed", changed)
             .finish()
     }
@@ -145,7 +135,7 @@ impl Response {
 
     /// `true` if there was a click *outside* this widget this frame.
     pub fn clicked_elsewhere(&self) -> bool {
-        !self.hovered && self.ctx.input().pointer.any_pressed()
+        !self.clicked() && self.ctx.input().pointer.any_click()
     }
 
     /// Was the widget enabled?
@@ -161,8 +151,13 @@ impl Response {
     }
 
     /// This widget has the keyboard focus (i.e. is receiving key presses).
-    pub fn has_kb_focus(&self) -> bool {
-        self.has_kb_focus
+    pub fn has_focus(&self) -> bool {
+        self.ctx.memory().has_focus(self.id)
+    }
+
+    /// True if this widget has keyboard focus this frame, but didn't last frame.
+    pub fn gained_focus(&self) -> bool {
+        self.ctx.memory().gained_focus(self.id)
     }
 
     /// The widget had keyboard focus and lost it,
@@ -174,12 +169,17 @@ impl Response {
     /// # let mut ui = egui::Ui::__test();
     /// # let mut my_text = String::new();
     /// # fn do_request(_: &str) {}
-    /// if ui.text_edit_singleline(&mut my_text).lost_kb_focus() {
+    /// if ui.text_edit_singleline(&mut my_text).lost_focus() {
     ///     do_request(&my_text);
     /// }
     /// ```
+    pub fn lost_focus(&self) -> bool {
+        self.ctx.memory().lost_focus(self.id)
+    }
+
+    #[deprecated = "Renamed to lost_focus()"]
     pub fn lost_kb_focus(&self) -> bool {
-        self.lost_kb_focus
+        self.lost_focus()
     }
 
     /// The widgets is being dragged.
@@ -348,6 +348,18 @@ impl Response {
         self.ctx.frame_state().scroll_target = Some((scroll_target, align));
         println!("scr targ: {:?}", scroll_target);
     }
+
+    /// For accessibility.
+    ///
+    /// Call after interacting and potential calls to [`Self::mark_changed`].
+    pub fn widget_info(&self, make_info: impl Fn() -> crate::WidgetInfo) {
+        if self.gained_focus() {
+            use crate::output::{OutputEvent, WidgetEvent};
+            let widget_info = make_info();
+            let event = OutputEvent::WidgetEvent(WidgetEvent::Focus, widget_info);
+            self.ctx.output().events.push(event);
+        }
+    }
 }
 
 impl Response {
@@ -382,8 +394,6 @@ impl Response {
             is_pointer_button_down_on: self.is_pointer_button_down_on
                 || other.is_pointer_button_down_on,
             interact_pointer_pos: self.interact_pointer_pos.or(other.interact_pointer_pos),
-            has_kb_focus: self.has_kb_focus || other.has_kb_focus,
-            lost_kb_focus: self.lost_kb_focus || other.lost_kb_focus,
             changed: self.changed || other.changed,
         }
     }
@@ -436,6 +446,7 @@ impl std::ops::BitOrAssign for Response {
 /// inner_resp.response.on_hover_text("You hovered the horizontal layout");
 /// assert_eq!(inner_resp.inner, 42);
 /// ```
+#[derive(Debug)]
 pub struct InnerResponse<R> {
     pub inner: R,
     pub response: Response,

@@ -181,6 +181,8 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
     #[cfg(feature = "http")]
     let http = std::sync::Arc::new(crate::http::GliumHttp {});
 
+    let mut screen_reader = crate::screen_reader::ScreenReader::default();
+
     if app.warm_up_enabled() {
         // let warm_up_start = Instant::now();
         input_state.raw.time = Some(0.0);
@@ -274,6 +276,7 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
                 };
             }
 
+            screen_reader.speak(&egui_output.events_description());
             handle_output(egui_output, &display, clipboard.as_mut());
 
             #[cfg(feature = "persistence")]

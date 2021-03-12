@@ -138,6 +138,7 @@ pub struct CollapsingHeader {
     label: Label,
     default_open: bool,
     id_source: Id,
+    enabled: bool,
 }
 
 impl CollapsingHeader {
@@ -154,6 +155,7 @@ impl CollapsingHeader {
             label,
             default_open: false,
             id_source,
+            enabled: true,
         }
     }
 
@@ -168,6 +170,21 @@ impl CollapsingHeader {
     /// This is useful if the title label is dynamic or not unique.
     pub fn id_source(mut self, id_source: impl Hash) -> Self {
         self.id_source = Id::new(id_source);
+        self
+    }
+
+    /// By default, the `CollapsingHeader` text style is `TextStyle::Button`.
+    /// Call `.text_style(style)` to change this.
+    pub fn text_style(mut self, text_style: TextStyle) -> Self {
+        self.label = self.label.text_style(text_style);
+        self
+    }
+
+    /// If you set this to `false`, the `CollapsingHeader` will be grayed out and un-clickable.
+    ///
+    /// This is a convenience for [`Ui::set_enabled`].
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
 }
@@ -188,6 +205,7 @@ impl CollapsingHeader {
             label,
             default_open,
             id_source,
+            enabled: _,
         } = self;
 
         // TODO: horizontal layout, with icon and text as labels. Insert background behind using Frame.
@@ -206,7 +224,7 @@ impl CollapsingHeader {
         desired_size = desired_size.at_least(ui.spacing().interact_size);
         let (_, rect) = ui.allocate_space(desired_size);
 
-        let header_response = ui.interact(rect, id, Sense::click());
+        let mut header_response = ui.interact(rect, id, Sense::click());
         let text_pos = pos2(
             text_pos.x,
             header_response.rect.center().y - galley.size.y / 2.0,
@@ -215,7 +233,10 @@ impl CollapsingHeader {
         let mut state = State::from_memory_with_default_open(ui.ctx(), id, default_open);
         if header_response.clicked() {
             state.toggle(ui);
+            header_response.mark_changed();
         }
+        header_response
+            .widget_info(|| WidgetInfo::labeled(WidgetType::CollapsingHeader, &galley.text));
 
         let visuals = ui.style().interact(&header_response);
         let text_color = visuals.text_color();
@@ -260,37 +281,43 @@ impl CollapsingHeader {
         ui: &mut Ui,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> CollapsingResponse<R> {
-        // Make sure contents are bellow header,
-        // and make sure it is one unit (necessary for putting a `CollapsingHeader` in a grid).
-        ui.vertical(|ui| {
-            let Prepared {
-                id,
-                header_response,
-                mut state,
-            } = self.begin(ui);
-            let ret_response = state.add_contents(ui, id, |ui| {
-                ui.indent(id, |ui| {
-                    // make as wide as the header:
-                    ui.expand_to_include_x(header_response.rect.right());
-                    add_contents(ui)
-                })
-                .inner
-            });
-            ui.memory().collapsing_headers.insert(id, state);
+        let header_enabled = self.enabled;
+        ui.wrap(|ui| {
+            ui.set_enabled(header_enabled);
 
-            if let Some(ret_response) = ret_response {
-                CollapsingResponse {
+            // Make sure contents are bellow header,
+            // and make sure it is one unit (necessary for putting a `CollapsingHeader` in a grid).
+            ui.vertical(|ui| {
+                let Prepared {
+                    id,
                     header_response,
-                    body_response: Some(ret_response.response),
-                    body_returned: Some(ret_response.inner),
+                    mut state,
+                } = self.begin(ui);
+                let ret_response = state.add_contents(ui, id, |ui| {
+                    ui.indent(id, |ui| {
+                        // make as wide as the header:
+                        ui.expand_to_include_x(header_response.rect.right());
+                        add_contents(ui)
+                    })
+                    .inner
+                });
+                ui.memory().collapsing_headers.insert(id, state);
+
+                if let Some(ret_response) = ret_response {
+                    CollapsingResponse {
+                        header_response,
+                        body_response: Some(ret_response.response),
+                        body_returned: Some(ret_response.inner),
+                    }
+                } else {
+                    CollapsingResponse {
+                        header_response,
+                        body_response: None,
+                        body_returned: None,
+                    }
                 }
-            } else {
-                CollapsingResponse {
-                    header_response,
-                    body_response: None,
-                    body_returned: None,
-                }
-            }
+            })
+            .inner
         })
         .inner
     }

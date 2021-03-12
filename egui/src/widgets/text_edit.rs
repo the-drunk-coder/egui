@@ -126,7 +126,7 @@ impl CCursorPair {
 /// # let mut ui = egui::Ui::__test();
 /// # let mut my_string = String::new();
 /// let response = ui.add(egui::TextEdit::singleline(&mut my_string));
-/// if response.lost_kb_focus() {
+/// if response.lost_focus() {
 ///     // use my_string
 /// }
 /// ```
@@ -152,7 +152,7 @@ impl<'t> TextEdit<'t> {
         Self::multiline(text)
     }
 
-    /// Now newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` loosing focus (`response.lost_kb_focus`).
+    /// Now newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` loosing focus (`response.lost_focus`).
     pub fn singleline(text: &'t mut String) -> Self {
         TextEdit {
             text,
@@ -255,12 +255,12 @@ impl<'t> Widget for TextEdit<'t> {
         let mut content_ui = ui.child_ui(max_rect, *ui.layout());
         let response = self.content_ui(&mut content_ui);
         let frame_rect = response.rect.expand2(margin);
-        let response = response | ui.allocate_rect(frame_rect, Sense::click());
+        let response = response | ui.allocate_rect(frame_rect, Sense::hover());
 
         if frame {
             let visuals = ui.style().interact(&response);
             let frame_rect = response.rect.expand(visuals.expansion);
-            let shape = if response.has_kb_focus {
+            let shape = if response.has_focus() {
                 Shape::Rect {
                     rect: frame_rect,
                     corner_radius: visuals.corner_radius,
@@ -335,10 +335,6 @@ impl<'t> TextEdit<'t> {
         let mut response = ui.interact(rect, id, sense);
 
         if enabled {
-            ui.memory().interested_in_kb_focus(id);
-        }
-
-        if enabled {
             if let Some(pointer_pos) = ui.input().pointer.interact_pos() {
                 // TODO: triple-click to select whole paragraph
                 // TODO: drag selected text to either move or clone (ctrl on windows, alt on mac)
@@ -363,7 +359,7 @@ impl<'t> TextEdit<'t> {
                     });
                     response.mark_changed();
                 } else if response.hovered() && ui.input().pointer.any_pressed() {
-                    ui.memory().request_kb_focus(id);
+                    ui.memory().request_focus(id);
                     if ui.input().modifiers.shift {
                         if let Some(cursorp) = &mut state.cursorp {
                             cursorp.primary = cursor_at_pointer;
@@ -383,19 +379,11 @@ impl<'t> TextEdit<'t> {
             }
         }
 
-        if response.clicked_elsewhere() {
-            ui.memory().surrender_kb_focus(id);
-        }
-
-        if !enabled {
-            ui.memory().surrender_kb_focus(id);
-        }
-
         if response.hovered() && enabled {
             ui.output().cursor_icon = CursorIcon::Text;
         }
 
-        if ui.memory().has_kb_focus(id) && enabled {
+        if ui.memory().has_focus(id) && enabled {
             let mut cursorp = state
                 .cursorp
                 .map(|cursorp| {
@@ -461,20 +449,10 @@ impl<'t> TextEdit<'t> {
                             insert_text(&mut ccursor, text, "\n");
                             Some(CCursorPair::one(ccursor))
                         } else {
-                            // Common to end input with enter
-                            ui.memory().surrender_kb_focus(id);
+                            ui.memory().surrender_focus(id); // End input with enter
                             break;
                         }
                     }
-                    Event::Key {
-                        key: Key::Escape,
-                        pressed: true,
-                        ..
-                    } => {
-                        ui.memory().surrender_kb_focus(id);
-                        break;
-                    }
-
                     Event::Key {
                         key: Key::Z,
                         pressed: true,
@@ -525,19 +503,7 @@ impl<'t> TextEdit<'t> {
                 .feed_state(ui.input().time, &(cursorp.as_ccursorp(), text.clone()));
         }
 
-        {
-            //let visuals = ui.style().interact(&response);
-            //let bg_rect = response.rect.expand(2.0); // breathing room for content
-            //ui.painter().add(PaintCmd::Rect {
-            //    rect: bg_rect,
-            //    corner_radius: visuals.corner_radius,
-            //    fill: ui.style().visuals.dark_bg_color,
-            // fill: visuals.bg_fill,
-            //    stroke: visuals.bg_stroke,
-            //});
-        }
-
-        if ui.memory().has_kb_focus(id) {
+        if ui.memory().has_focus(id) {
             if let Some(cursorp) = state.cursorp {
                 paint_cursor_selection(
                     ui,
@@ -571,10 +537,8 @@ impl<'t> TextEdit<'t> {
 
         ui.memory().text_edit.insert(id, state);
 
-        Response {
-            lost_kb_focus: ui.memory().lost_kb_focus(id), // we may have lost it during the course of this function
-            ..response
-        }
+        response.widget_info(|| WidgetInfo::text_edit(&*text));
+        response
     }
 }
 

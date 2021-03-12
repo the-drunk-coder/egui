@@ -9,6 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added ⭐
+
+* You can now give focus to any clickable widget with tab/shift-tab.
+  * Use space or enter to click the selected widget.
+  * Use arrow keys to adjust sliders and `DragValue`s.
+* egui will now output events when widgets gain keyboard focus.
+  * This can be hooked up to a screen reader to aid the visually impaired
+* Add the option to restrict the dragging bounds of `Window` and `Area` to a specified area using `drag_bounds(rect)`.
+
 ### Fixed 🐛
 
 * Fixed secondary-click to open a menu
@@ -205,7 +214,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   * Much improved text editing, with better navigation and selection.
   * Move focus between `TextEdit` widgets with tab and shift-tab.
   * Undo edtis in a `TextEdit`.
-  * You can now check if a `TextEdit` lost keyboard focus with `response.lost_kb_focus`.
+  * You can now check if a `TextEdit` lost keyboard focus with `response.lost_focus`.
   * Added `ui.text_edit_singleline` and `ui.text_edit_multiline`.
 * You can now debug why your `Ui` is unexpectedly wide with `ui.style_mut().visuals.debug_expand_width = true;`
 
