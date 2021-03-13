@@ -1,5 +1,5 @@
 use crate::*;
-use epaint::{Galley, text::TextColorMap};
+use epaint::{text::TextColorMap, Galley};
 
 /// Static text.
 ///
@@ -34,8 +34,8 @@ impl Label {
             text_style: None,
             background_color: Color32::TRANSPARENT,
             text_color: None,
-	    text_color_map: None,
-	    code: false,
+            text_color_map: None,
+            code: false,
             strong: false,
             weak: false,
             strikethrough: false,
