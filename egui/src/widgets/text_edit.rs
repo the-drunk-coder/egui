@@ -1,5 +1,5 @@
 use crate::{util::undoer::Undoer, *};
-use epaint::{text::cursor::*, *};
+use epaint::{text::{cursor::*, TextColorMap}, *};
 
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
@@ -127,6 +127,7 @@ pub struct TextEdit<'t> {
     id_source: Option<Id>,
     text_style: Option<TextStyle>,
     text_color: Option<Color32>,
+    text_color_map: Option<TextColorMap>,
     frame: bool,
     multiline: bool,
     enabled: bool,
@@ -149,6 +150,7 @@ impl<'t> TextEdit<'t> {
             id_source: None,
             text_style: None,
             text_color: None,
+	    text_color_map: None,
             frame: true,
             multiline: false,
             enabled: true,
@@ -167,6 +169,7 @@ impl<'t> TextEdit<'t> {
             text_style: None,
             frame: true,
             text_color: None,
+	    text_color_map: None,
             multiline: true,
             enabled: true,
             desired_width: None,
@@ -200,9 +203,14 @@ impl<'t> TextEdit<'t> {
         self.text_color = Some(text_color);
         self
     }
-
+ 
     pub fn text_color_opt(mut self, text_color: Option<Color32>) -> Self {
         self.text_color = text_color;
+        self
+    }
+
+    pub fn text_color_map(mut self, text_color_map: TextColorMap) -> Self {
+        self.text_color_map = Some(text_color_map);
         self
     }
 
@@ -281,7 +289,8 @@ impl<'t> TextEdit<'t> {
             id_source,
             text_style,
             text_color,
-            frame: _,
+	    text_color_map,
+	    frame: _,
             multiline,
             enabled,
             desired_width,
