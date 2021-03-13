@@ -158,6 +158,7 @@ impl Interaction {
             self.drag_id = None;
         }
 
+
         self.focus.begin_frame(new_input);
     }
 }
@@ -173,7 +174,7 @@ impl Focus {
         if let Some(id) = self.id_next_frame.take() {
             self.id = Some(id);
         }
-
+	
         self.pressed_tab = false;
         self.pressed_shift_tab = false;
         for event in &new_input.events {
