@@ -1,7 +1,8 @@
 use crate::color::Color32;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug)]
+/// Used to assign colors to different parts of a text.
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextColorMap {
     color_map: BTreeMap<usize, Color32>,
 }
@@ -33,7 +34,7 @@ impl TextColorMap {
         }
     }
 
-    pub fn get_color_change_at_index(&self, idx: usize) -> Option<&Color32> {
+    pub fn color_change_at_index(&self, idx: usize) -> Option<&Color32> {
         self.color_map.get(&idx)
     }
 }

@@ -1,5 +1,5 @@
 use crate::*;
-use epaint::Galley;
+use epaint::{Galley, text::TextColorMap};
 
 /// Static text.
 ///
@@ -17,6 +17,7 @@ pub struct Label {
     pub(crate) text_style: Option<TextStyle>,
     pub(crate) background_color: Color32,
     pub(crate) text_color: Option<Color32>,
+    pub(crate) text_color_map: Option<TextColorMap>,
     code: bool,
     strong: bool,
     weak: bool,
@@ -33,7 +34,8 @@ impl Label {
             text_style: None,
             background_color: Color32::TRANSPARENT,
             text_color: None,
-            code: false,
+	    text_color_map: None,
+	    code: false,
             strong: false,
             weak: false,
             strikethrough: false,
@@ -122,8 +124,15 @@ impl Label {
         self
     }
 
+    /// set the default text color
     pub fn text_color(mut self, text_color: impl Into<Color32>) -> Self {
         self.text_color = Some(text_color.into());
+        self
+    }
+
+    /// set position-dependent color changes
+    pub fn text_color_map(mut self, text_color_map: impl Into<TextColorMap>) -> Self {
+        self.text_color_map = Some(text_color_map.into());
         self
     }
 }
