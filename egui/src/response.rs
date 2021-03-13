@@ -1,6 +1,6 @@
 use crate::{
     emath::{lerp, Align, Pos2, Rect, Vec2},
-    PointerButton, NUM_POINTER_BUTTONS,
+    CursorIcon, PointerButton, NUM_POINTER_BUTTONS,
 };
 use crate::{CtxRef, Id, LayerId, Sense, Ui};
 
@@ -267,6 +267,18 @@ impl Response {
         self
     }
 
+    /// Like `on_hover_ui`, but show the ui next to cursor.
+    pub fn on_hover_ui_at_pointer(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
+        if self.should_show_hover_ui() {
+            crate::containers::show_tooltip_at_pointer(
+                &self.ctx,
+                self.id.with("__tooltip"),
+                add_contents,
+            );
+        }
+        self
+    }
+
     fn should_show_hover_ui(&self) -> bool {
         if self.ctx.memory().everything_is_visible() {
             true
@@ -300,6 +312,14 @@ impl Response {
     #[deprecated = "Deprecated 2020-10-01: use `on_hover_text` instead."]
     pub fn tooltip_text(self, text: impl Into<String>) -> Self {
         self.on_hover_text(text)
+    }
+
+    /// When hovered, use this icon for the mouse cursor.
+    pub fn on_hover_cursor(self, cursor: CursorIcon) -> Self {
+        if self.hovered() {
+            self.ctx.output().cursor_icon = cursor;
+        }
+        self
     }
 
     /// Check for more interactions (e.g. sense clicks on a `Response` returned from a label).
