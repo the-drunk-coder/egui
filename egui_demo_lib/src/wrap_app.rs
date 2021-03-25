@@ -285,7 +285,7 @@ impl BackendPanel {
                 "Everything you see is rendered as textured triangles. There is no DOM. There are no HTML elements. \
                 This is not JavaScript. This is Rust, running at 60 FPS. This is the web page, reinvented with game tech.");
             ui.label("This is also work in progress, and not ready for production... yet :)");
-            ui.horizontal_wrapped_for_text(egui::TextStyle::Body, |ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label("Project home page:");
                 ui.hyperlink("https://github.com/emilk/egui");
             });
@@ -315,9 +315,17 @@ impl BackendPanel {
             }
         }
 
+        let mut screen_reader = ui.ctx().memory().options.screen_reader;
+        ui.checkbox(&mut screen_reader, "Screen reader").on_hover_text("Experimental feature: checking this will turn on the screen reader on supported platforms");
+        ui.ctx().memory().options.screen_reader = screen_reader;
+
         ui.collapsing("Output events", |ui| {
             ui.set_max_width(450.0);
-            ui.label("Recent output events from egui:");
+            ui.label(
+                "Recent output events from egui. \
+            These are emitted when you switch selected widget with tab, \
+            and can be hooked up to a screen reader on supported platforms.",
+            );
             ui.advance_cursor(8.0);
             for event in &self.output_event_history {
                 ui.label(format!("{:?}", event));
