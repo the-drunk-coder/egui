@@ -75,7 +75,7 @@ impl Row {
     #[inline]
     pub fn sanity_check(&self) {
         assert!(!self.x_offsets.is_empty());
-        assert!(self.x_offsets.len() == self.uv_rects.len() + 1);
+        //assert!(self.x_offsets.len() == self.uv_rects.len() + 1);
     }
 
     /// Excludes the implicit `\n` after the `Row`, if any.

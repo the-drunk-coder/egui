@@ -324,7 +324,7 @@ impl Font {
             rows: vec![row],
             size,
         };
-        self.finalize_galley(galley)
+        self.finalize_galley(galley, false)
     }
 
     /// Always returns at least one row.
@@ -418,7 +418,7 @@ impl Font {
             rows,
             size,
         };
-        self.finalize_galley(galley)
+        self.finalize_galley(galley, false)
     }
 
     /// A paragraph is text with no line break character in it.
@@ -511,11 +511,26 @@ impl Font {
         out_rows
     }
 
-    fn finalize_galley(&self, mut galley: Galley) -> Galley {
+    fn finalize_galley(&self, mut galley: Galley, print_line_numbers: bool) -> Galley {
         let mut chars = galley.text.chars();
+	let mut row_count = 0;
+	
         for row in &mut galley.rows {
+
+	    row_count += 1;	    	    
             row.uv_rects.clear();
-            row.uv_rects.reserve(row.char_count_excluding_newline());
+	    
+	    if print_line_numbers {
+		let line_number = row_count.to_string();
+		row.uv_rects.reserve(row.char_count_excluding_newline() + line_number.len() + 1);
+		for c in line_number.chars() {
+		    row.uv_rects.push(self.uv_rect(c));
+		}
+		row.uv_rects.push(self.uv_rect(' '));
+	    } else {
+		row.uv_rects.reserve(row.char_count_excluding_newline());
+	    }
+	    
             for _ in 0..row.char_count_excluding_newline() {
                 let c = chars.next().unwrap();
                 row.uv_rects.push(self.uv_rect(c));
