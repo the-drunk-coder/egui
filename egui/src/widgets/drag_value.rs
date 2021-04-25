@@ -217,10 +217,16 @@ impl<'a> Widget for DragValue<'a> {
             max_decimals,
         } = self;
 
+        let is_slow_speed =
+            ui.input().modifiers.shift_only() && ui.memory().is_being_dragged(ui.next_auto_id());
+
         let value = get(&mut get_set_value);
         let value = clamp_to_range(value, clamp_range.clone());
         let aim_rad = ui.input().aim_radius() as f64;
+
         let auto_decimals = (aim_rad / speed.abs()).log10().ceil().clamp(0.0, 15.0) as usize;
+        let auto_decimals = auto_decimals + is_slow_speed as usize;
+
         let max_decimals = max_decimals.unwrap_or(auto_decimals + 2);
         let auto_decimals = auto_decimals.clamp(min_decimals, max_decimals);
         let value_text = if value == 0.0 {
@@ -260,22 +266,33 @@ impl<'a> Widget for DragValue<'a> {
         } else {
             let button = Button::new(format!("{}{}{}", prefix, value_text, suffix))
                 .sense(Sense::click_and_drag())
-                .text_style(TextStyle::Monospace);
+                .text_style(TextStyle::Monospace)
+                .wrap(false)
+                .min_size(ui.spacing().interact_size); // TODO: find some more generic solution to this
+
             let response = ui.add(button);
-            let response = response.on_hover_text(format!(
-                "{}{}{}\nDrag to edit or click to enter a value.",
-                prefix,
-                value as f32, // Show full precision value on-hover. TODO: figure out f64 vs f32
-                suffix
-            ));
+            let response = response
+                .on_hover_cursor(CursorIcon::ResizeHorizontal)
+                .on_hover_text(format!(
+                    "{}{}{}\nDrag to edit or click to enter a value.\nPress 'Shift' while dragging for better control.",
+                    prefix,
+                    value as f32, // Show full precision value on-hover. TODO: figure out f64 vs f32
+                    suffix
+                ));
 
             if response.clicked() {
                 ui.memory().request_focus(kb_edit_id);
                 ui.memory().drag_value.edit_string = None; // Filled in next frame
             } else if response.dragged() {
+                ui.output().cursor_icon = CursorIcon::ResizeHorizontal;
+
                 let mdelta = response.drag_delta();
                 let delta_points = mdelta.x - mdelta.y; // Increase to the right and up
+
+                let speed = if is_slow_speed { speed / 10.0 } else { speed };
+
                 let delta_value = delta_points as f64 * speed;
+
                 if delta_value != 0.0 {
                     let mut drag_state = std::mem::take(&mut ui.memory().drag_value);
 

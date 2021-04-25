@@ -59,7 +59,7 @@ pub(crate) struct GridLayout {
 
 impl GridLayout {
     pub(crate) fn new(ui: &Ui, id: Id) -> Self {
-        let prev_state = ui.memory().grid.get(&id).cloned().unwrap_or_default();
+        let prev_state = ui.memory().id_data.get_or_default::<State>(id).clone();
 
         // TODO: respect current layout
 
@@ -149,8 +149,8 @@ impl GridLayout {
     }
 
     pub(crate) fn advance(&mut self, cursor: &mut Rect, frame_rect: Rect, widget_rect: Rect) {
-        let debug_expand_width = self.style.visuals.debug_expand_width;
-        let debug_expand_height = self.style.visuals.debug_expand_height;
+        let debug_expand_width = self.style.debug.show_expand_width;
+        let debug_expand_height = self.style.debug.show_expand_height;
         if debug_expand_width || debug_expand_height {
             let rect = widget_rect;
             let too_wide = rect.width() > self.prev_col_width(self.col);
@@ -212,7 +212,7 @@ impl GridLayout {
         if self.curr_state != self.prev_state {
             self.ctx
                 .memory()
-                .grid
+                .id_data
                 .insert(self.id, self.curr_state.clone());
             self.ctx.request_repaint();
         }

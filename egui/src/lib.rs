@@ -201,6 +201,15 @@
 //! }
 //! ```
 //!
+//! ## Sizes
+//! You can control the size of widgets using [`Ui::add_sized`].
+//!
+//! ```
+//! # let ui = &mut egui::Ui::__test();
+//! # let mut my_value = 0.0_f32;
+//! ui.add_sized([40.0, 20.0], egui::DragValue::new(&mut my_value));
+//! ```
+//!
 //! ## Code snippets
 //!
 //! ```
@@ -228,6 +237,9 @@
 //! ```
 
 #![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
+#![deny(broken_intra_doc_links)]
+#![deny(invalid_codeblock_attributes)]
+#![deny(private_intra_doc_links)]
 #![forbid(unsafe_code)]
 #![warn(
     clippy::all,
@@ -274,17 +286,16 @@
     clippy::unused_self,
     clippy::verbose_file_reads,
     future_incompatible,
-    missing_crate_level_docs,
     nonstandard_style,
     rust_2018_idioms
 )]
 #![allow(clippy::manual_range_contains)]
 
 mod animation_manager;
+pub mod any;
 pub mod containers;
 mod context;
 mod data;
-pub mod experimental;
 mod frame_state;
 pub(crate) mod grid;
 mod id;
@@ -342,21 +353,9 @@ pub use {
 
 // ----------------------------------------------------------------------------
 
-/// `true` if egui was compiled with debug assertions enabled.
-#[cfg(debug_assertions)]
-pub(crate) const fn has_debug_assertions() -> bool {
-    true
-}
-
-/// `true` if egui was compiled with debug assertions enabled.
-#[cfg(not(debug_assertions))]
-pub(crate) const fn has_debug_assertions() -> bool {
-    false
-}
-
 /// Helper function that adds a label when compiling with debug assertions enabled.
 pub fn warn_if_debug_build(ui: &mut crate::Ui) {
-    if crate::has_debug_assertions() {
+    if cfg!(debug_assertions) {
         ui.label(
             crate::Label::new("‼ Debug build ‼")
                 .small()

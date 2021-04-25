@@ -7,6 +7,9 @@
 //! Start by looking at the [`App`] trait, and implement [`App::update`].
 
 #![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
+#![deny(broken_intra_doc_links)]
+#![deny(invalid_codeblock_attributes)]
+#![deny(private_intra_doc_links)]
 #![forbid(unsafe_code)]
 #![warn(
     clippy::all,
@@ -53,7 +56,6 @@
     clippy::unused_self,
     clippy::verbose_file_reads,
     future_incompatible,
-    missing_crate_level_docs,
     nonstandard_style,
     rust_2018_idioms
 )]
@@ -89,10 +91,12 @@ pub trait App {
     /// Called on shutdown, and perhaps at regular intervals. Allows you to save state.
     ///
     /// On web the states is stored to "Local Storage".
-    /// On native the path is picked using [`directories_next::ProjectDirs`](https://docs.rs/directories-next/latest/directories_next/struct.ProjectDirs.html) which is:
-    /// * Linux:   `/home/UserName/.config/appname`
-    /// * macOS:   `/Users/UserName/Library/Application Support/appname`
-    /// * Windows: `C:\Users\UserName\AppData\Roaming\appname`
+    /// On native the path is picked using [`directories_next::ProjectDirs::data_dir`](https://docs.rs/directories-next/2.0.0/directories_next/struct.ProjectDirs.html#method.data_dir) which is:
+    /// * Linux:   `/home/UserName/.local/share/APPNAME`
+    /// * macOS:   `/Users/UserName/Library/Application Support/APPNAME`
+    /// * Windows: `C:\Users\UserName\AppData\Roaming\APPNAME`
+    ///
+    /// where `APPNAME` is what is returned by [`Self::name()`].
     fn save(&mut self, _storage: &mut dyn Storage) {}
 
     /// Called once on shutdown (before or after `save()`)
@@ -129,12 +133,33 @@ pub trait App {
     /// This is the background of your windows if you don't set a central panel.
     fn clear_color(&self) -> egui::Rgba {
         // NOTE: a bright gray makes the shadows of the windows look weird.
-        egui::Color32::from_rgb(12, 12, 12).into()
+        // We use a bit of transparency so that if the user switches on the
+        // `transparent()` option they get immediate results.
+        egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).into()
     }
 
     /// The application icon, e.g. in the Windows task bar etc.
     fn icon_data(&self) -> Option<IconData> {
         None
+    }
+
+    /// On desktop: add window decorations (i.e. a frame around your app)?
+    /// If false it will be difficult to move and resize the app.
+    fn decorated(&self) -> bool {
+        true
+    }
+
+    /// On desktop: make the window transparent.
+    /// You control the transparency with [`Self::clear_color()`].
+    /// You should avoid having a [`egui::CentralPanel`], or make sure its frame is also transparent.
+    fn transparent(&self) -> bool {
+        false
+    }
+
+    /// On Windows: enable drag and drop support.
+    /// Set to false to avoid issues with crates such as cpal which uses that use multi-threaded COM API <https://github.com/rust-windowing/winit/pull/1524>
+    fn drag_and_drop_support(&self) -> bool {
+        true
     }
 }
 
@@ -230,6 +255,9 @@ pub struct IntegrationInfo {
 /// How to allocate textures (images) to use in [`egui`].
 pub trait TextureAllocator {
     /// Allocate a new user texture.
+    ///
+    /// There is no way to change a texture.
+    /// Instead allocate a new texture and free the previous one with [`Self::free`].
     fn alloc_srgba_premultiplied(
         &mut self,
         size: (usize, usize),
@@ -275,18 +303,21 @@ impl Storage for DummyStorage {
     fn flush(&mut self) {}
 }
 
-/// Get an deserialize the JSON stored at the given key.
-#[cfg(feature = "serde_json")]
+/// Get an deserialize the [RON](https://github.com/ron-rs/ron) stored at the given key.
+#[cfg(feature = "ron")]
 pub fn get_value<T: serde::de::DeserializeOwned>(storage: &dyn Storage, key: &str) -> Option<T> {
     storage
         .get_string(key)
-        .and_then(|value| serde_json::from_str(&value).ok())
+        .and_then(|value| ron::from_str(&value).ok())
 }
 
-/// Serialize the given value as JSON and store with the given key.
-#[cfg(feature = "serde_json")]
+/// Serialize the given value as [RON](https://github.com/ron-rs/ron) and store with the given key.
+#[cfg(feature = "ron")]
 pub fn set_value<T: serde::Serialize>(storage: &mut dyn Storage, key: &str, value: &T) {
-    storage.set_string(key, serde_json::to_string_pretty(value).unwrap());
+    storage.set_string(
+        key,
+        ron::ser::to_string_pretty(value, Default::default()).unwrap(),
+    );
 }
 
 /// [`Storage`] key used for app

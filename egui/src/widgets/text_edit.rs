@@ -21,6 +21,10 @@ pub(crate) struct State {
     selection_toggle: bool,
     #[cfg_attr(feature = "persistence", serde(skip))]
     undoer: Undoer<(CCursorPair, String)>,
+
+    // If IME candidate window is shown on this text edit.
+    #[cfg_attr(feature = "persistence", serde(skip))]
+    has_ime: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -118,7 +122,7 @@ impl CCursorPair {
 
 /// A text region that the user can edit the contents of.
 ///
-/// Se also [`Ui::text_edit_singleline`] and  [`Ui::text_edit_multiline`].
+/// See also [`Ui::text_edit_singleline`] and  [`Ui::text_edit_multiline`].
 ///
 /// Example:
 ///
@@ -142,6 +146,7 @@ pub struct TextEdit<'t> {
     id_source: Option<Id>,
     text_style: Option<TextStyle>,
     text_color: Option<Color32>,
+    password: bool,
     frame: bool,
     multiline: bool,
     enabled: bool,
@@ -151,8 +156,8 @@ pub struct TextEdit<'t> {
 impl<'t> TextEdit<'t> {
     pub fn cursor(ui: &Ui, id: Id) -> Option<CursorPair> {
         ui.memory()
-            .text_edit
-            .get(&id)
+            .id_data
+            .get::<State>(&id)
             .and_then(|state| state.cursorp)
     }
 }
@@ -163,7 +168,7 @@ impl<'t> TextEdit<'t> {
         Self::multiline(text)
     }
 
-    /// Now newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` loosing focus (`response.lost_focus`).
+    /// No newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` losing focus (`response.lost_focus`).
     pub fn singleline(text: &'t mut String) -> Self {
         TextEdit {
             text,
@@ -172,6 +177,7 @@ impl<'t> TextEdit<'t> {
             id_source: None,
             text_style: None,
             text_color: None,
+            password: false,
             frame: true,
             multiline: false,
             enabled: true,
@@ -188,8 +194,9 @@ impl<'t> TextEdit<'t> {
             id: None,
             id_source: None,
             text_style: None,
-            frame: true,
             text_color: None,
+            password: false,
+            frame: true,
             multiline: true,
             enabled: true,
             desired_width: None,
@@ -211,6 +218,12 @@ impl<'t> TextEdit<'t> {
     /// Show a faint hint text when the text field is empty.
     pub fn hint_text(mut self, hint_text: impl Into<String>) -> Self {
         self.hint_text = hint_text.into();
+        self
+    }
+
+    /// If true, hide the letters from view and prevent copying from the field.
+    pub fn password(mut self, password: bool) -> Self {
+        self.password = password;
         self
     }
 
@@ -304,6 +317,7 @@ impl<'t> TextEdit<'t> {
             id_source,
             text_style,
             text_color,
+            password,
             frame: _,
             multiline,
             enabled,
@@ -312,14 +326,32 @@ impl<'t> TextEdit<'t> {
         } = self;
 
         let text_style = text_style.unwrap_or_else(|| ui.style().body_text_style);
-        let font = &ui.fonts()[text_style];
-        let line_spacing = font.row_height();
+        let line_spacing = ui.fonts().row_height(text_style);
         let available_width = ui.available_width();
-        let mut galley = if multiline {
-            font.layout_multiline(text.clone(), available_width)
-        } else {
-            font.layout_single_line(text.clone())
+
+        let make_galley = |ui: &Ui, text: &str| {
+            let text = if password {
+                std::iter::repeat(epaint::text::PASSWORD_REPLACEMENT_CHAR)
+                    .take(text.chars().count())
+                    .collect::<String>()
+            } else {
+                text.to_owned()
+            };
+            if multiline {
+                ui.fonts()
+                    .layout_multiline(text_style, text, available_width)
+            } else {
+                ui.fonts().layout_single_line(text_style, text)
+            }
         };
+
+        let copy_if_not_password = |ui: &Ui, text: String| {
+            if !password {
+                ui.ctx().output().copied_text = text;
+            }
+        };
+
+        let mut galley = make_galley(ui, text);
 
         let desired_width = desired_width.unwrap_or_else(|| ui.spacing().text_edit_width);
         let desired_height = (desired_height_rows.at_least(1) as f32) * line_spacing;
@@ -336,7 +368,7 @@ impl<'t> TextEdit<'t> {
                 auto_id // Since we are only storing the cursor a persistent Id is not super important
             }
         });
-        let mut state = ui.memory().text_edit.get(&id).cloned().unwrap_or_default();
+        let mut state = ui.memory().id_data.get_or_default::<State>(id).clone();
 
         let sense = if enabled {
             Sense::click_and_drag()
@@ -394,6 +426,7 @@ impl<'t> TextEdit<'t> {
             ui.output().cursor_icon = CursorIcon::Text;
         }
 
+        let mut text_cursor = None;
         if ui.memory().has_focus(id) && enabled {
             let mut cursorp = state
                 .cursorp
@@ -422,18 +455,18 @@ impl<'t> TextEdit<'t> {
                 let did_mutate_text = match event {
                     Event::Copy => {
                         if cursorp.is_empty() {
-                            ui.ctx().output().copied_text = text.clone();
+                            copy_if_not_password(ui, text.clone());
                         } else {
-                            ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
+                            copy_if_not_password(ui, selected_str(text, &cursorp).to_owned());
                         }
                         None
                     }
                     Event::Cut => {
                         if cursorp.is_empty() {
-                            ui.ctx().output().copied_text = std::mem::take(text);
+                            copy_if_not_password(ui, std::mem::take(text));
                             Some(CCursorPair::default())
                         } else {
-                            ui.ctx().output().copied_text = selected_str(text, &cursorp).to_owned();
+                            copy_if_not_password(ui, selected_str(text, &cursorp).to_owned());
                             Some(CCursorPair::one(delete_selected(text, &cursorp)))
                         }
                     }
@@ -486,6 +519,41 @@ impl<'t> TextEdit<'t> {
                         modifiers,
                     } => on_key_press(&mut cursorp, text, &galley, *key, modifiers),
 
+                    Event::CompositionStart => {
+                        state.has_ime = true;
+                        None
+                    }
+
+                    Event::CompositionUpdate(text_mark) => {
+                        if !text_mark.is_empty()
+                            && text_mark != "\n"
+                            && text_mark != "\r"
+                            && state.has_ime
+                        {
+                            let mut ccursor = delete_selected(text, &cursorp);
+                            let start_cursor = ccursor;
+                            insert_text(&mut ccursor, text, text_mark);
+                            Some(CCursorPair::two(start_cursor, ccursor))
+                        } else {
+                            None
+                        }
+                    }
+
+                    Event::CompositionEnd(prediction) => {
+                        if !prediction.is_empty()
+                            && prediction != "\n"
+                            && prediction != "\r"
+                            && state.has_ime
+                        {
+                            state.has_ime = false;
+                            let mut ccursor = delete_selected(text, &cursorp);
+                            insert_text(&mut ccursor, text, prediction);
+                            Some(CCursorPair::one(ccursor))
+                        } else {
+                            None
+                        }
+                    }
+
                     _ => None,
                 };
 
@@ -493,12 +561,7 @@ impl<'t> TextEdit<'t> {
                     response.mark_changed();
 
                     // Layout again to avoid frame delay, and to keep `text` and `galley` in sync.
-                    let font = &ui.fonts()[text_style];
-                    galley = if multiline {
-                        font.layout_multiline(text.clone(), available_width)
-                    } else {
-                        font.layout_single_line(text.clone())
-                    };
+                    galley = make_galley(ui, text);
 
                     // Set cursorp using new galley:
                     cursorp = CursorPair {
@@ -507,6 +570,7 @@ impl<'t> TextEdit<'t> {
                     };
                 }
             }
+            text_cursor = Some(cursorp);
             state.cursorp = Some(cursorp);
 
             state
@@ -515,6 +579,15 @@ impl<'t> TextEdit<'t> {
         }
 
         if ui.memory().has_focus(id) {
+            {
+                let mut output = ui.ctx().output();
+                output.text_cursor = text_cursor.map(|c| {
+                    galley
+                        .pos_from_cursor(&c.primary)
+                        .translate(response.rect.min.to_vec2())
+                        .left_top()
+                });
+            }
             if let Some(cursorp) = state.cursorp {
                 paint_cursor_selection(
                     ui,
@@ -531,23 +604,22 @@ impl<'t> TextEdit<'t> {
             .or(ui.visuals().override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
             .unwrap_or_else(|| ui.visuals().widgets.inactive.text_color());
-        ui.painter()
-            .galley(response.rect.min, galley, text_style, text_color);
+        ui.painter().galley(response.rect.min, galley, text_color);
 
         if text.is_empty() && !hint_text.is_empty() {
-            let font = &ui.fonts()[text_style];
             let galley = if multiline {
-                font.layout_multiline(hint_text, available_width)
+                ui.fonts()
+                    .layout_multiline(text_style, hint_text, available_width)
             } else {
-                font.layout_single_line(hint_text)
+                ui.fonts().layout_single_line(text_style, hint_text)
             };
             let hint_text_color = ui.visuals().weak_text_color();
             ui.painter()
-                .galley(response.rect.min, galley, text_style, hint_text_color);
+                .galley(response.rect.min, galley, hint_text_color);
         }
 
-        ui.memory().text_edit.insert(id, state);
-	
+        ui.memory().id_data.insert(id, state);
+
         response.widget_info(|| WidgetInfo::text_edit(&*text));
         response
     }
@@ -697,7 +769,8 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
         let line_spacing = font.row_height();
         let available_width = ui.available_width();
 
-        let mut galley = font.layout_multiline(text.clone(), available_width);
+        let mut galley = ui.fonts()
+            .layout_multiline(text_style, text.clone(), available_width);
 
         let desired_width = desired_width.unwrap_or_else(|| ui.style().spacing.text_edit_width);
         let desired_height = (desired_height_rows.at_least(1) as f32) * line_spacing;
@@ -716,7 +789,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             }
         });
 
-        let mut state = ui.memory().text_edit.get(&id).cloned().unwrap_or_default();
+	let mut state = ui.memory().id_data.get_or_default::<State>(id).clone();
 
         if reset_cursor {
             state.y_offset = 0.0;
@@ -1147,8 +1220,9 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
 
                 if let Some(new_ccursorp) = did_mutate_text {
                     // Layout again to avoid frame delay, and to keep `text` and `galley` in sync.
-                    let font = &ui.fonts()[text_style];
-                    galley = font.layout_multiline(text.clone(), available_width);
+                    //let font = &ui.fonts()[text_style];
+                    galley = ui.fonts()
+			.layout_multiline(text_style, text.clone(), available_width);
 
                     // Set cursorp using new galley:
                     cursorp = CursorPair {
@@ -1296,13 +1370,12 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
 
         ui.painter().multicolor_galley(
             response.rect.min,
-            galley,
-            text_style,
+            galley,            
             egui_colors,
             default_color,
         );
 
-        ui.memory().text_edit.insert(id, state);        
+        ui.memory().id_data.insert(id, state);        
         response        
     }
 }

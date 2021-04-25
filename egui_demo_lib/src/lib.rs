@@ -3,6 +3,9 @@
 //! The demo-code is also used in benchmarks and tests.
 
 #![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
+#![deny(broken_intra_doc_links)]
+#![deny(invalid_codeblock_attributes)]
+#![deny(private_intra_doc_links)]
 #![forbid(unsafe_code)]
 #![warn(
     clippy::all,
@@ -49,13 +52,13 @@
     clippy::unused_self,
     clippy::verbose_file_reads,
     future_incompatible,
-    missing_crate_level_docs,
     nonstandard_style,
     rust_2018_idioms
 )]
 #![allow(clippy::manual_range_contains)]
 
 mod apps;
+pub mod easy_mark;
 pub(crate) mod frame_history;
 mod wrap_app;
 

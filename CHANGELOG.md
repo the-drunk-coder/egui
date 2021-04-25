@@ -2,10 +2,31 @@
 
 All notable changes to the egui crate will be documented in this file.
 
-NOTE: `eframe`, `egui_web` and `egui_glium` has their own changelogs!
+NOTE: [`eframe`](eframe/CHANGELOG.md), [`egui_web`](egui_web/CHANGELOG.md) and [`egui_glium`](egui_glium/CHANGELOG.md) has their own changelogs!
 
 
 ## Unreleased
+
+### Added ⭐
+* Add anchors to windows and areas so you can put a window in e.g. the top right corner.
+* Make labels interactive with `Label::sense(Sense::click())`.
+* Add `Response::request_focus` and `Response::surrender_focus`.
+* [Pan and zoom plots](https://github.com/emilk/egui/pull/317).
+* [Users can now store custom state in `egui::Memory`.](https://github.com/emilk/egui/pull/257).
+
+### Changed 🔧
+* Make `Memory::has_focus` public (again).
+* `Plot` must now be given a name that is unique within its scope.
+
+### Fixed 🐛
+* Fix [defocus-bug on touch screens](https://github.com/emilk/egui/issues/288).
+* Fix bug with the layout of wide `DragValue`:s.
+
+### Removed 🔥
+* Moved experimental markup language to `egui_demo_lib`
+
+
+## 0.11.0 - 2021-04-05 - Optimization, screen reader & new layout logic
 
 ### Added ⭐
 * You can now give focus to any clickable widget with tab/shift-tab.
@@ -16,11 +37,13 @@ NOTE: `eframe`, `egui_web` and `egui_glium` has their own changelogs!
 * Add the option to restrict the dragging bounds of `Window` and `Area` to a specified area using `drag_bounds(rect)`.
 * Add support for small and raised text.
 * Add `ui.set_row_height`.
-* Add `Visuals::debug_widgets` to debug layouting by hovering widgets.
+* Add `DebugOptions::show_widgets` to debug layouting by hovering widgets.
 * Add `ComboBox` to more easily customize combo boxes.
 * Add `Slider::new` and `DragValue::new` to replace old type-specific constructors.
+* Add `TextEdit::password` to hide input characters.
 
 ### Changed 🔧
+* `ui.advance_cursor` is now called `ui.add_space`.
 * `kb_focus` is now just called `focus`.
 
 ### Fixed 🐛
@@ -82,7 +105,7 @@ NOTE: `eframe`, `egui_web` and `egui_glium` has their own changelogs!
 * Backend: pointer (mouse/touch) position and buttons are now passed to egui in the event stream.
 * `DragValue::range` is now called `clamp_range` and also clamps incoming values.
 * Renamed `Triangles` to `Mesh`.
-* The tesselator now wraps the clip rectangle and mesh in `struct ClippedMesh(Rect, Mesh)`.
+* The tessellator now wraps the clip rectangle and mesh in `struct ClippedMesh(Rect, Mesh)`.
 * `Mesh::split_to_u16` now returns a 16-bit indexed `Mesh16`.
 
 ### Fixed 🐛
@@ -210,7 +233,7 @@ NOTE: `eframe`, `egui_web` and `egui_glium` has their own changelogs!
   * Undo edtis in a `TextEdit`.
   * You can now check if a `TextEdit` lost keyboard focus with `response.lost_focus`.
   * Added `ui.text_edit_singleline` and `ui.text_edit_multiline`.
-* You can now debug why your `Ui` is unexpectedly wide with `ui.style_mut().visuals.debug_expand_width = true;`
+* You can now debug why your `Ui` is unexpectedly wide with `ui.style_mut().debug.show_expand_width = true;`
 
 ### Changed 🔧
 * Pressing enter in a single-line `TextEdit` will now surrender keyboard focus for it.
