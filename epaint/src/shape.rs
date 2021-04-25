@@ -48,7 +48,7 @@ pub enum Shape {
         default_color: Color32,
         /// If true, tilt the letters for an ugly italics effect
         fake_italics: bool,
-    },    
+    },
     Mesh(Mesh),
 }
 
@@ -192,7 +192,7 @@ impl Shape {
             }
             Shape::Text { pos, .. } => {
                 *pos += delta;
-            }            
+            }
             Shape::Mesh(mesh) => {
                 mesh.translate(delta);
             }

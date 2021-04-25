@@ -181,7 +181,7 @@ impl PaintStats {
             }
             Shape::Text { galley, .. } => {
                 self.shape_text += AllocInfo::from_galley(galley);
-            }            
+            }
             Shape::Mesh(mesh) => {
                 self.shape_mesh += AllocInfo::from_mesh(mesh);
             }

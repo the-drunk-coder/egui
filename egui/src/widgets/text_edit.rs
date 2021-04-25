@@ -769,7 +769,8 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
         let line_spacing = font.row_height();
         let available_width = ui.available_width();
 
-        let mut galley = ui.fonts()
+        let mut galley = ui
+            .fonts()
             .layout_multiline(text_style, text.clone(), available_width);
 
         let desired_width = desired_width.unwrap_or_else(|| ui.style().spacing.text_edit_width);
@@ -789,7 +790,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             }
         });
 
-	let mut state = ui.memory().id_data.get_or_default::<State>(id).clone();
+        let mut state = ui.memory().id_data.get_or_default::<State>(id).clone();
 
         if reset_cursor {
             state.y_offset = 0.0;
@@ -1221,8 +1222,9 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
                 if let Some(new_ccursorp) = did_mutate_text {
                     // Layout again to avoid frame delay, and to keep `text` and `galley` in sync.
                     //let font = &ui.fonts()[text_style];
-                    galley = ui.fonts()
-			.layout_multiline(text_style, text.clone(), available_width);
+                    galley = ui
+                        .fonts()
+                        .layout_multiline(text_style, text.clone(), available_width);
 
                     // Set cursorp using new galley:
                     cursorp = CursorPair {
@@ -1368,15 +1370,11 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             }
         }*/
 
-        ui.painter().multicolor_galley(
-            response.rect.min,
-            galley,            
-            egui_colors,
-            default_color,
-        );
+        ui.painter()
+            .multicolor_galley(response.rect.min, galley, egui_colors, default_color);
 
-        ui.memory().id_data.insert(id, state);        
-        response        
+        ui.memory().id_data.insert(id, state);
+        response
     }
 }
 
