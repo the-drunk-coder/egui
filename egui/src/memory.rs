@@ -11,18 +11,21 @@ use crate::{any, area, window, Id, InputState, LayerId, Pos2, Rect, Style};
 ///
 /// If you want this to persist when closing your app you should serialize `Memory` and store it.
 ///
-/// If you want to store data for your widgets, you should look at `data`/`data_temp` and `id_data`/`id_data_temp` fields, and read the documentation of [`any`] module.
+/// If you want to store data for your widgets, you should look at `data`/`data_temp` and
+/// `id_data`/`id_data_temp` fields, and read the documentation of [`any`] module.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))]
 pub struct Memory {
     pub options: Options,
 
-    /// This map stores current states for widgets that don't require `Id`. This will be saved between different program runs if you use the `persistence` feature.
+    /// This map stores current states for widgets that don't require `Id`.
+    /// This will be saved between different program runs if you use the `persistence` feature.
     #[cfg(feature = "persistence")]
     pub data: any::serializable::TypeMap,
 
-    /// This map stores current states for widgets that don't require `Id`. This will be saved between different program runs if you use the `persistence` feature.
+    /// This map stores current states for widgets that don't require `Id`.
+    /// This will be saved between different program runs if you use the `persistence` feature.
     #[cfg(not(feature = "persistence"))]
     pub data: any::TypeMap,
 
@@ -30,11 +33,13 @@ pub struct Memory {
     #[cfg_attr(feature = "persistence", serde(skip))]
     pub data_temp: any::TypeMap,
 
-    /// This map stores current states for all widgets with custom `Id`s. This will be saved between different program runs if you use the `persistence` feature.
+    /// This map stores current states for all widgets with custom `Id`s.
+    /// This will be saved between different program runs if you use the `persistence` feature.
     #[cfg(feature = "persistence")]
     pub id_data: any::serializable::AnyMap<Id>,
 
-    /// This map stores current states for all widgets with custom `Id`s. This will be saved between different program runs if you use the `persistence` feature.
+    /// This map stores current states for all widgets with custom `Id`s.
+    /// This will be saved between different program runs if you use the `persistence` feature.
     #[cfg(not(feature = "persistence"))]
     pub id_data: any::AnyMap<Id>,
 
@@ -141,8 +146,12 @@ pub(crate) struct Focus {
     /// The last widget interested in focus.
     last_interested: Option<Id>,
 
+    /// If `true`, pressing tab will NOT move focus away from the current widget.
+    is_focus_locked: bool,
+
     /// Set at the beginning of the frame, set to `false` when "used".
     pressed_tab: bool,
+
     /// Set at the beginning of the frame, set to `false` when "used".
     pressed_shift_tab: bool,
 }
@@ -199,6 +208,7 @@ impl Focus {
                 }
             ) {
                 self.id = None;
+                self.is_focus_locked = false;
                 break;
             }
 
@@ -208,10 +218,12 @@ impl Focus {
                 modifiers,
             } = event
             {
-                if modifiers.shift {
-                    self.pressed_shift_tab = true;
-                } else {
-                    self.pressed_tab = true;
+                if !self.is_focus_locked {
+                    if modifiers.shift {
+                        self.pressed_shift_tab = true;
+                    } else {
+                        self.pressed_tab = true;
+                    }
                 }
             }
         }
@@ -287,10 +299,24 @@ impl Memory {
         !self.had_focus_last_frame(id) && self.has_focus(id)
     }
 
-    /// Does this widget have keybaord focus?
+    /// Does this widget have keyboard focus?
     #[inline(always)]
     pub fn has_focus(&self, id: Id) -> bool {
         self.interaction.focus.id == Some(id)
+    }
+
+    pub(crate) fn lock_focus(&mut self, id: Id, lock_focus: bool) {
+        if self.had_focus_last_frame(id) && self.has_focus(id) {
+            self.interaction.focus.is_focus_locked = lock_focus;
+        }
+    }
+
+    pub(crate) fn has_lock_focus(&mut self, id: Id) -> bool {
+        if self.had_focus_last_frame(id) && self.has_focus(id) {
+            self.interaction.focus.is_focus_locked
+        } else {
+            false
+        }
     }
 
     /// Give keyboard focus to a specific widget.
@@ -298,6 +324,7 @@ impl Memory {
     #[inline(always)]
     pub fn request_focus(&mut self, id: Id) {
         self.interaction.focus.id = Some(id);
+        self.interaction.focus.is_focus_locked = false;
     }
 
     /// Surrender keyboard focus for a specific widget.
@@ -306,6 +333,7 @@ impl Memory {
     pub fn surrender_focus(&mut self, id: Id) {
         if self.interaction.focus.id == Some(id) {
             self.interaction.focus.id = None;
+            self.interaction.focus.is_focus_locked = false;
         }
     }
 
@@ -490,4 +518,13 @@ impl Areas {
         order.sort_by_key(|layer| (layer.order, wants_to_be_on_top.contains(layer)));
         wants_to_be_on_top.clear();
     }
+}
+
+// ----------------------------------------------------------------------------
+
+#[cfg(test)]
+#[test]
+fn memory_impl_send_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Memory>();
 }
