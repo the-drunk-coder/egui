@@ -143,6 +143,9 @@ pub trait TextBuffer:
     /// # Notes
     /// `ch_range` is a *character range*, not a byte range.
     fn delete_char_range(&mut self, ch_range: Range<usize>);
+
+    /// Get character in nth position    
+    fn nth(&self, pos: usize) -> Option<char>;
 }
 
 impl TextBuffer for String {
@@ -165,6 +168,10 @@ impl TextBuffer for String {
 
         // Then drain all characters within this range
         self.drain(byte_start..byte_end);
+    }
+
+    fn nth(&self, pos: usize) -> Option<char> {
+	self.chars().nth(pos)
     }
 }
 
@@ -227,7 +234,7 @@ impl<'t, S: TextBuffer> TextEdit<'t, S> {
     }
 
     /// No newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` losing focus (`response.lost_focus`).
-    pub fn singleline(text: &'t mut S) -> Self {
+    pub fn singleline(text: &'t mut S) -> Self {			
         TextEdit {
             text,
             hint_text: Default::default(),
@@ -898,7 +905,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             }
         });
 
-        let mut state = ui.memory().id_data.get_or_default::<State>(id).clone();
+        let mut state = ui.memory().id_data.get_or_default::<State<String>>(id).clone();
 
         if reset_cursor {
             state.y_offset = 0.0;
@@ -1670,9 +1677,9 @@ fn on_key_press<S: TextBuffer>(
                     delete_previous_word(text, cursor.ccursor)
                 } else {
                     // this seems inefficient ...
-                    if let Some(cur_char) = text.chars().nth(cursor.ccursor.index - 1) {
+                    if let Some(cur_char) = text.nth(cursor.ccursor.index - 1) {
                         //println!("cur char {}", cur_char);
-                        if let Some(next_char) = text.chars().nth(cursor.ccursor.index) {
+                        if let Some(next_char) = text.nth(cursor.ccursor.index) {
                             //println!("next char {}", next_char);
                             if (cur_char == '(' && next_char == ')')
                                 || (cur_char == '[' && next_char == ']')
