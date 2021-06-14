@@ -175,7 +175,7 @@ pub fn input_to_egui(
                         && (keycode == VirtualKeyCode::X || keycode == VirtualKeyCode::W)
                     {
                         input_state.raw.events.push(Event::Cut);
-                    } else if input_state.raw.modifiers.command && keycode == VirtualKeyCode::C {
+                    } else if is_copy_command(input_state.raw.modifiers, keycode) {
                         input_state.raw.events.push(Event::Copy);
                     } else if input_state.raw.modifiers.command
                         && (keycode == VirtualKeyCode::V || keycode == VirtualKeyCode::Y)
@@ -201,6 +201,11 @@ pub fn input_to_egui(
                     });
                 }
             }
+        }
+        WindowEvent::Focused(_) => {
+            // We will not be given a KeyboardInput event when the modifiers are released while
+            // the window does not have focus. Unset all modifier state to be safe.
+            input_state.raw.modifiers = Modifiers::default();
         }
         WindowEvent::MouseWheel { delta, .. } => {
             let mut delta = match delta {
@@ -275,6 +280,21 @@ fn is_printable_char(chr: char) -> bool {
         || '\u{100000}' <= chr && chr <= '\u{10fffd}';
 
     !is_in_private_use_area && !chr.is_ascii_control()
+}
+
+fn is_cut_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
+    (modifiers.command && keycode == VirtualKeyCode::X)
+        || (cfg!(target_os = "windows") && modifiers.shift && keycode == VirtualKeyCode::Delete)
+}
+
+fn is_copy_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
+    (modifiers.command && keycode == VirtualKeyCode::C)
+        || (cfg!(target_os = "windows") && modifiers.ctrl && keycode == VirtualKeyCode::Insert)
+}
+
+fn is_paste_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
+    (modifiers.command && keycode == VirtualKeyCode::V)
+        || (cfg!(target_os = "windows") && modifiers.shift && keycode == VirtualKeyCode::Insert)
 }
 
 pub fn translate_mouse_button(button: glutin::event::MouseButton) -> Option<egui::PointerButton> {
