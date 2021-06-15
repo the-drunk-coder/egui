@@ -282,20 +282,20 @@ fn is_printable_char(chr: char) -> bool {
     !is_in_private_use_area && !chr.is_ascii_control()
 }
 
-fn is_cut_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
-    (modifiers.command && keycode == VirtualKeyCode::X)
-        || (cfg!(target_os = "windows") && modifiers.shift && keycode == VirtualKeyCode::Delete)
-}
+//fn is_cut_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
+//    (modifiers.command && keycode == VirtualKeyCode::X)
+//        || (cfg!(target_os = "windows") && modifiers.shift && keycode == VirtualKeyCode::Delete)
+//}
 
 fn is_copy_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
     (modifiers.command && keycode == VirtualKeyCode::C)
         || (cfg!(target_os = "windows") && modifiers.ctrl && keycode == VirtualKeyCode::Insert)
 }
 
-fn is_paste_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
-    (modifiers.command && keycode == VirtualKeyCode::V)
-        || (cfg!(target_os = "windows") && modifiers.shift && keycode == VirtualKeyCode::Insert)
-}
+//fn is_paste_command(modifiers: egui::Modifiers, keycode: VirtualKeyCode) -> bool {
+//    (modifiers.command && keycode == VirtualKeyCode::V)
+//        || (cfg!(target_os = "windows") && modifiers.shift && keycode == VirtualKeyCode::Insert)
+//}
 
 pub fn translate_mouse_button(button: glutin::event::MouseButton) -> Option<egui::PointerButton> {
     match button {

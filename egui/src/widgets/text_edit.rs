@@ -986,7 +986,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             }
         });
 
-        let mut state = ui.memory().id_data.get_or_default::<State<String>>(id).clone();
+        let mut state = ui.memory().id_data.get_or_default::<State>(id).clone();
 
         if reset_cursor {
             state.y_offset = 0.0;
