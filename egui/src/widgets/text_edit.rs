@@ -1756,7 +1756,7 @@ fn on_key_press<S: TextBuffer>(
                 if modifiers.alt || modifiers.ctrl {
                     // alt on mac, ctrl on windows
                     delete_previous_word(text, cursor.ccursor)
-                } else {
+                } else if text.as_str().len() > 0 {		    
                     // this seems inefficient ...
                     if let Some(cur_char) = text.nth(cursor.ccursor.index - 1) {
                         //println!("cur char {}", cur_char);
@@ -1777,11 +1777,13 @@ fn on_key_press<S: TextBuffer>(
                     } else {
                         delete_previous_char(text, cursor.ccursor)
                     }
-                }
+                } else {
+		    CCursor::new(0)
+		}
             } else {
                 delete_selected(text, cursorp)
             };
-            Some(CCursorPair::one(ccursor))
+	    Some(CCursorPair::one(ccursor))
         }
         Key::Delete if !(cfg!(target_os = "windows") && modifiers.shift) => {
             let ccursor = if modifiers.mac_cmd {
