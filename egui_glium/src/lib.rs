@@ -136,7 +136,7 @@ pub fn input_to_egui(
                 && !input_state.raw.modifiers.ctrl
                 && !input_state.raw.modifiers.mac_cmd
             {
-                if ch == '(' {
+                if *ch == '(' {
                     // this is a bit hacky, but it makes it easier to handle
                     // parens in the text_edit widget, i.e. for automatic pairs etc ...
                     input_state.raw.events.push(Event::Key {
@@ -144,7 +144,7 @@ pub fn input_to_egui(
                         pressed: true,
                         modifiers: input_state.raw.modifiers,
                     });
-                } else if ch == '[' {
+                } else if *ch == '[' {
                     // this is a bit hacky, but it makes it easier to handle
                     // parens in the text_edit widget, i.e. for automatic pairs etc ...
                     input_state.raw.events.push(Event::Key {
@@ -152,7 +152,7 @@ pub fn input_to_egui(
                         pressed: true,
                         modifiers: input_state.raw.modifiers,
                     });
-                } else if ch == '\"' {
+                } else if *ch == '\"' {
                     // this is a bit hacky, but it makes it easier to handle
                     // parens in the text_edit widget, i.e. for automatic pairs etc ...
                     input_state.raw.events.push(Event::Key {
