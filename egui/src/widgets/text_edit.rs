@@ -144,7 +144,6 @@ pub trait TextBuffer: AsRef<str> + Into<String> {
     /// `ch_range` is a *character range*, not a byte range.
     fn delete_char_range(&mut self, ch_range: Range<usize>);
 
-
     /// Get character in nth position    
     fn nth(&self, pos: usize) -> Option<char>;
 
@@ -197,11 +196,10 @@ impl TextBuffer for String {
         self.drain(byte_start..byte_end);
     }
 
-
     fn nth(&self, pos: usize) -> Option<char> {
-	self.chars().nth(pos)
+        self.chars().nth(pos)
     }
-    
+
     fn clear(&mut self) {
         self.clear();
     }
@@ -274,7 +272,7 @@ impl<'t, S: TextBuffer> TextEdit<'t, S> {
     }
 
     /// No newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` losing focus (`response.lost_focus`).
-    pub fn singleline(text: &'t mut S) -> Self {			
+    pub fn singleline(text: &'t mut S) -> Self {
         TextEdit {
             text,
             hint_text: Default::default(),
@@ -782,7 +780,13 @@ impl<'t, S: TextBuffer> TextEdit<'t, S> {
 
         if ui.memory().has_focus(id) {
             if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(&painter, text_draw_pos, &galley, &cursorp, ui.visuals().selection.bg_fill);
+                paint_cursor_selection(
+                    &painter,
+                    text_draw_pos,
+                    &galley,
+                    &cursorp,
+                    ui.visuals().selection.bg_fill,
+                );
                 paint_cursor_end(ui, &painter, text_draw_pos, &galley, &cursorp.primary);
 
                 if enabled {
@@ -1031,7 +1035,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             Sense::hover()
         };
         let response = ui.interact(rect, id, sense);
-	let painter = ui.painter_at(Rect::from_min_size(response.rect.min, desired_size));
+        let painter = ui.painter_at(Rect::from_min_size(response.rect.min, desired_size));
 
         if enabled {
             ui.memory().interested_in_focus(id);
@@ -1472,12 +1476,24 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
 
         if ui.memory().has_focus(id) {
             if let Some(cursorp) = state.cursorp {
-		paint_cursor_selection(&painter, response.rect.min, &galley, &cursorp, ui.visuals().selection.bg_fill);                
+                paint_cursor_selection(
+                    &painter,
+                    response.rect.min,
+                    &galley,
+                    &cursorp,
+                    ui.visuals().selection.bg_fill,
+                );
                 paint_cursor_end(ui, &painter, response.rect.min, &galley, &cursorp.primary);
             }
             if let Some(cursorp) = state.flash_cursorp {
                 if state.flash_alpha > 40 {
-		    paint_cursor_selection(&painter, response.rect.min, &galley, &cursorp,Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha));      
+                    paint_cursor_selection(
+                        &painter,
+                        response.rect.min,
+                        &galley,
+                        &cursorp,
+                        Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha),
+                    );
                     state.flash_alpha -= 40;
                 }
             }
@@ -1778,7 +1794,7 @@ fn on_key_press<S: TextBuffer>(
                 if modifiers.alt || modifiers.ctrl {
                     // alt on mac, ctrl on windows
                     delete_previous_word(text, cursor.ccursor)
-                } else if text.as_str().len() > 0 {		    
+                } else if text.as_str().len() > 0 {
                     // this seems inefficient ...
                     if let Some(cur_char) = text.nth(cursor.ccursor.index - 1) {
                         //println!("cur char {}", cur_char);
@@ -1800,12 +1816,12 @@ fn on_key_press<S: TextBuffer>(
                         delete_previous_char(text, cursor.ccursor)
                     }
                 } else {
-		    CCursor::new(0)
-		}
+                    CCursor::new(0)
+                }
             } else {
                 delete_selected(text, cursorp)
             };
-	    Some(CCursorPair::one(ccursor))
+            Some(CCursorPair::one(ccursor))
         }
         Key::Delete if !(cfg!(target_os = "windows") && modifiers.shift) => {
             let ccursor = if modifiers.mac_cmd {

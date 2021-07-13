@@ -564,24 +564,24 @@ impl Font {
 
     fn finalize_galley(&self, mut galley: Galley, print_line_numbers: bool) -> Galley {
         let mut chars = galley.text.chars();
-	let mut row_count = 0;
-	
-        for row in &mut galley.rows {
+        let mut row_count = 0;
 
-	    row_count += 1;	    	    
+        for row in &mut galley.rows {
+            row_count += 1;
             row.uv_rects.clear();
-	    
-	    if print_line_numbers {
-		let line_number = row_count.to_string();
-		row.uv_rects.reserve(row.char_count_excluding_newline() + line_number.len() + 1);
-		for c in line_number.chars() {
-		    row.uv_rects.push(self.uv_rect(c));
-		}
-		row.uv_rects.push(self.uv_rect(' '));
-	    } else {
-		row.uv_rects.reserve(row.char_count_excluding_newline());
-	    }
-	    
+
+            if print_line_numbers {
+                let line_number = row_count.to_string();
+                row.uv_rects
+                    .reserve(row.char_count_excluding_newline() + line_number.len() + 1);
+                for c in line_number.chars() {
+                    row.uv_rects.push(self.uv_rect(c));
+                }
+                row.uv_rects.push(self.uv_rect(' '));
+            } else {
+                row.uv_rects.reserve(row.char_count_excluding_newline());
+            }
+
             for _ in 0..row.char_count_excluding_newline() {
                 let c = chars.next().unwrap();
                 row.uv_rects.push(self.uv_rect(c));
