@@ -782,7 +782,7 @@ impl<'t, S: TextBuffer> TextEdit<'t, S> {
 
         if ui.memory().has_focus(id) {
             if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(ui, &painter, text_draw_pos, &galley, &cursorp);
+                paint_cursor_selection(&painter, text_draw_pos, &galley, &cursorp, ui.visuals().selection.bg_fill);
                 paint_cursor_end(ui, &painter, text_draw_pos, &galley, &cursorp.primary);
 
                 if enabled {
@@ -1031,6 +1031,7 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
             Sense::hover()
         };
         let response = ui.interact(rect, id, sense);
+	let painter = ui.painter_at(Rect::from_min_size(response.rect.min, desired_size));
 
         if enabled {
             ui.memory().interested_in_focus(id);
@@ -1471,24 +1472,12 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
 
         if ui.memory().has_focus(id) {
             if let Some(cursorp) = state.cursorp {
-                paint_cursor_selection(
-                    ui,
-                    response.rect.min,
-                    &galley,
-                    &cursorp,
-                    ui.style().visuals.selection.bg_fill,
-                );
-                paint_cursor_end(ui, response.rect.min, &galley, &cursorp.primary);
+		paint_cursor_selection(&painter, response.rect.min, &galley, &cursorp, ui.visuals().selection.bg_fill);                
+                paint_cursor_end(ui, &painter, response.rect.min, &galley, &cursorp.primary);
             }
             if let Some(cursorp) = state.flash_cursorp {
                 if state.flash_alpha > 40 {
-                    paint_cursor_selection(
-                        ui,
-                        response.rect.min,
-                        &galley,
-                        &cursorp,
-                        Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha),
-                    );
+		    paint_cursor_selection(&painter, response.rect.min, &galley, &cursorp,Color32::from_rgba_unmultiplied(220, 80, 20, state.flash_alpha));      
                     state.flash_alpha -= 40;
                 }
             }
@@ -1610,14 +1599,12 @@ impl<'t> Widget for LivecodeTextEdit<'t> {
 // ----------------------------------------------------------------------------
 
 fn paint_cursor_selection(
-    ui: &mut Ui,
     painter: &Painter,
     pos: Pos2,
     galley: &Galley,
     cursorp: &CursorPair,
+    color: Color32,
 ) {
-    let color = ui.visuals().selection.bg_fill;
-
     if cursorp.is_empty() {
         return;
     }
